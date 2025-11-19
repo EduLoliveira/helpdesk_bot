@@ -2,7 +2,7 @@
 Sistema inteligente que simula um bot para automação de processos de suporte técnico, incluindo monitoramento de chamados, notificações automáticas e geração de insights atraves dos dados.
 
 🗂️ Estrutura do Projeto
-
+```bash
 PROJETO_AI/
 ├── 📁 app_project/                 # Aplicação principal
 │   ├── 📁 migrations/             # Migrações do banco de dados
