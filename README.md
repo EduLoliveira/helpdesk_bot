@@ -2,6 +2,7 @@
 Sistema inteligente que simula um bot para automação de processos de suporte técnico, incluindo monitoramento de chamados, notificações automáticas e geração de insights atraves dos dados.
 
 🗂️ Estrutura do Projeto
+
 PROJETO_AI/
 ├── 📁 app_project/                 # Aplicação principal
 │   ├── 📁 migrations/             # Migrações do banco de dados
@@ -27,7 +28,8 @@ PROJETO_AI/
 │   │   ├── 📄 home.css
 │   │   ├── 📄 homeNotificacoes.css
 │   │   └── 📄 initial.css
-│   └── 📁 js/                     # Scripts JavaScript
+│   └── 📁 js/                     
+│       └── 📄 chat-bot.js         # Scripts JavaScript
 ├── 📁 venv/                       # Ambiente virtual Python
 ├── 📄 db.sqlite3                  # Banco de dados SQLite
 ├── 📄 manage.py                   # Script de gerenciamento Django
