@@ -2,7 +2,6 @@
 Sistema inteligente que simula um bot para automação de processos de suporte técnico, incluindo monitoramento de chamados, notificações automáticas e geração de insights atraves dos dados.
 
 🗂️ Estrutura do Projeto
-text
 PROJETO_AI/
 ├── 📁 app_project/                 # Aplicação principal
 │   ├── 📁 migrations/             # Migrações do banco de dados
@@ -50,6 +49,43 @@ Sistema completo de gerenciamento de usuários incluindo:
 - Perfis de acesso diferenciados
 - Gestão de permissões
 - Integração com sistema de notificações
+
+## 🛠️ Configuração do Ambiente
+
+```bash
+# Criar ambiente virtual
+python -m venv venv
+
+# Ativar ambiente virtual (Windows)
+venv\Scripts\activate
+
+# Instalar dependências
+pip install -r requirements.txt
+
+# Executar migrações
+python manage.py migrate
+
+# Iniciar servidor
+python manage.py runserver
+
+
+
+## 🚀 Funcionalidades Principais
+### 🤖 Automações do Bot
+- **Monitoramento de Chamados** - Acompanhamento em tempo real
+- **Notificações Automáticas** - Alertas inteligentes
+- **Geração de Relatórios** - Análise de dados e métricas
+- **Integração com ChatBot** - API para sistemas de mensagens
+- **Abertura de Chamados** - Criação e confirmação automatizada
+
+
+## 👥 API de Usuários
+Sistema completo de gerenciamento de usuários incluindo:
+- Cadastro e autenticação de usuários
+- Perfis de acesso diferenciados
+- Gestão de permissões
+- Integração com sistema de notificações
+
 
 ## 🛠️ Configuração do Ambiente
 
