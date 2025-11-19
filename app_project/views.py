@@ -1,0 +1,1429 @@
+# views.py - VERSÃO ATUALIZADA
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse, HttpResponseForbidden
+from django.db import IntegrityError
+from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
+from functools import wraps
+import json
+import threading
+import time
+import logging
+import re
+from django.core.exceptions import ValidationError, PermissionDenied
+from django.views.decorators.http import require_http_methods
+from django.conf import settings
+from django.utils.html import strip_tags
+import html as html_escape
+
+# Certifique-se de que os modelos e diálogos estão sendo importados corretamente
+# (Assumindo que estão no mesmo app)
+from .models import Usuario, Chamado, Departamento, InteracaoChamado, Notificacao
+from .bot_dialogos import bot_dialogos
+
+# Configurar logging
+logger = logging.getLogger(__name__)
+
+class SecurityManager:
+    """Gerenciador centralizado de medidas de segurança"""
+    
+    @staticmethod
+    def sanitize_input(text, max_length=500, allow_html=False):
+        """Sanitiza entrada de usuário removendo ou escapando conteúdo perigoso"""
+        if not text:
+            return ""
+        
+        # Remove tags HTML se não permitido
+        if not allow_html:
+            clean_text = strip_tags(str(text))
+            # Escapa caracteres especiais
+            clean_text = html_escape.escape(clean_text)
+        else:
+            clean_text = str(text)
+        
+        # Limita o tamanho
+        if len(clean_text) > max_length:
+            clean_text = clean_text[:max_length]
+            
+        return clean_text.strip()
+    
+    @staticmethod
+    def validate_username(username):
+        """Valida formato do username"""
+        if not username or len(username) < 3:
+            raise ValidationError("Username deve ter pelo menos 3 caracteres")
+        
+        if len(username) > 30:
+            raise ValidationError("Username muito longo (máximo 30 caracteres)")
+            
+        # Permite apenas letras, números e alguns caracteres especiais
+        if not re.match(r'^[a-zA-Z0-9_.-]+$', username):
+            raise ValidationError("Username contém caracteres inválidos. Use apenas letras, números, '.', '-' e '_'")
+        
+        # Previne usernames comuns que podem ser usados em ataques
+        blocked_usernames = ['admin', 'administrator', 'root', 'system', 'suporte', 'support']
+        if username.lower() in blocked_usernames:
+            raise ValidationError("Este username não está disponível")
+        
+        return username
+    
+    @staticmethod
+    def validate_codigo_suporte(codigo):
+        """Valida código de suporte - CORRIGIDO PARA 6 DÍGITOS E COLABORADORES"""
+        try:
+            # Remove espaços e converte para string
+            codigo_str = str(codigo).strip()
+            
+            # Verifica se está vazio
+            if not codigo_str:
+                raise ValidationError("Código de suporte é obrigatório")
+            
+            # Verifica se é um número válido
+            if not codigo_str.isdigit():
+                raise ValidationError("Código de suporte deve conter apenas números")
+            
+            codigo_int = int(codigo_str)
+            
+            # ✅ CORREÇÃO: Aceita códigos de 6 dígitos (100000-199999 = Suporte, 200000-999999 = Colaborador)
+            if codigo_int < 100000 or codigo_int > 999999:
+                raise ValidationError("Código de suporte deve ter 6 dígitos (ex: 100001 para suporte, 200001 para colaborador)")
+            
+            return codigo_int
+        except (ValueError, TypeError) as e:
+            raise ValidationError("Código de suporte deve ser um número válido de 6 dígitos")
+    
+    @staticmethod
+    def validate_uuid(uuid_string):
+        """Valida formato UUID"""
+        uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.I)
+        return bool(uuid_pattern.match(str(uuid_string)))
+    
+    @staticmethod
+    def prevent_brute_force(request, operation_type, max_attempts=5, window_seconds=300):
+        """Prevenção básica contra ataques de força bruta"""
+        from django.core.cache import cache
+        
+        client_ip = request.META.get('REMOTE_ADDR', 'unknown')
+        key = f"brute_force_{operation_type}_{client_ip}"
+        attempts = cache.get(key, 0)
+        
+        if attempts >= max_attempts:
+            logger.warning(f"Brute force detectado: {client_ip} - {operation_type}")
+            return False
+            
+        cache.set(key, attempts + 1, window_seconds)
+        return True
+
+# Instância global do gerenciador de segurança
+security = SecurityManager()
+
+def rate_limit(max_requests=100, window=3600):
+    """
+    Decorator para limitar taxa de requisições
+    """
+    def decorator(view_func):
+        @wraps(view_func)
+        def _wrapped_view(request, *args, **kwargs):
+            if not settings.DEBUG:  # Só aplica em produção
+                from django.core.cache import cache
+                
+                client_ip = request.META.get('REMOTE_ADDR', 'unknown')
+                key = f"rate_limit_{view_func.__name__}_{client_ip}"
+                
+                current = cache.get(key, 0)
+                if current >= max_requests:
+                    logger.warning(f"Rate limit excedido: {client_ip} - {view_func.__name__}")
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'Limite de requisições excedido. Tente novamente mais tarde.'
+                    }, status=429)
+                
+                cache.set(key, current + 1, window)
+            
+            return view_func(request, *args, **kwargs)
+        return _wrapped_view
+    return decorator
+
+def usuario_required(view_func):
+    """Decorator para verificar se o usuário está cadastrado com segurança reforçada"""
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if 'usuario_id' not in request.session:
+            logger.warning("Tentativa de acesso sem sessão de usuário")
+            return redirect('home')
+        
+        try:
+            # Validar UUID do usuário
+            usuario_id = request.session['usuario_id']
+            if not security.validate_uuid(usuario_id):
+                logger.warning(f"ID de usuário inválido na sessão: {usuario_id}")
+                request.session.flush()
+                raise PermissionDenied("Sessão inválida")
+            
+            usuario = Usuario.objects.get(id_usuario=usuario_id)
+            request.usuario = usuario
+            return view_func(request, *args, **kwargs)
+            
+        except Usuario.DoesNotExist:
+            logger.warning(f"Usuário não encontrado na sessão: {request.session.get('usuario_id')}")
+            request.session.flush()
+            return redirect('home')
+        except Exception as e:
+            logger.error(f"Erro no decorator de usuário: {str(e)}")
+            request.session.flush()
+            return redirect('home')
+    return _wrapped_view
+
+@require_http_methods(["GET", "POST"])
+@rate_limit(max_requests=30, window=3600)
+def home(request):
+    """Página inicial com formulário para criar usuários - CORRIGIDA PARA 6 DÍGITOS E COLABORADORES"""
+    if 'usuario_id' in request.session:
+        try:
+            usuario = Usuario.objects.get(id_usuario=request.session['usuario_id'])
+            return redirect('dashboard')
+        except Usuario.DoesNotExist:
+            request.session.flush()
+    
+    if request.method == 'POST':
+        # Prevenção contra brute force
+        if not security.prevent_brute_force(request, 'user_creation', max_attempts=3, window_seconds=900):
+            return render(request, 'home.html', {
+                'error': 'Muitas tentativas de criação de usuário. Aguarde 15 minutos.',
+                'usuarios': Usuario.objects.all().order_by('-criado_em')[:3]
+            })
+        
+        try:
+            username = security.sanitize_input(request.POST.get('username', '').strip())
+            codigo_suporte = request.POST.get('codigo_suporte')
+            
+            logger.info(f"Tentativa de criação de usuário: {username}")
+            
+            # Validações básicas
+            if not username or not codigo_suporte:
+                return render(request, 'home.html', {
+                    'error': 'Todos os campos são obrigatórios!',
+                    'usuarios': Usuario.objects.all().order_by('-criado_em')[:3]
+                })
+            
+            # Validar username
+            try:
+                security.validate_username(username)
+            except ValidationError as e:
+                return render(request, 'home.html', {
+                    'error': str(e),
+                    'usuarios': Usuario.objects.all().order_by('-criado_em')[:3]
+                })
+            
+            # ✅ CORREÇÃO: Validar código de suporte com 6 dígitos para ambos os tipos
+            try:
+                codigo_int = security.validate_codigo_suporte(codigo_suporte)
+            except ValidationError as e:
+                return render(request, 'home.html', {
+                    'error': str(e),
+                    'usuarios': Usuario.objects.all().order_by('-criado_em')[:3]
+                })
+            
+            # Verificar se username já existe
+            if Usuario.objects.filter(username=username).exists():
+                return render(request, 'home.html', {
+                    'error': 'Este nome de usuário já está em uso. Escolha outro.',
+                    'usuarios': Usuario.objects.all().order_by('-criado_em')[:3]
+                })
+            
+            # ✅ LÓGICA CORRIGIDA: Códigos 100000-199999 = Suporte, 200000-999999 = Colaborador
+            if 100000 <= codigo_int <= 199999:
+                tipo_usuario = 'suporte'
+            else:
+                tipo_usuario = 'colaborador'
+            
+            # Criar usuário
+            usuario = Usuario.objects.create(
+                username=username,
+                codigo_suporte=codigo_int,
+                tipo_usuario=tipo_usuario
+            )
+            
+            logger.info(f"Usuário criado com sucesso: {username} (ID: {usuario.id_usuario}) - Tipo: {tipo_usuario} - Código: {codigo_int}")
+            
+            # Configurar sessão de forma segura
+            request.session['usuario_id'] = str(usuario.id_usuario)
+            request.session['username'] = usuario.username
+            request.session['tipo_usuario'] = usuario.tipo_usuario
+            request.session.set_expiry(86400)  # 24 horas de expiração
+            request.session.modified = True
+            
+            return redirect('dashboard')
+            
+        except IntegrityError as e:
+            logger.error(f"Erro de integridade ao criar usuário: {str(e)}")
+            return render(request, 'home.html', {
+                'error': 'Erro ao criar usuário. Tente novamente.',
+                'usuarios': Usuario.objects.all().order_by('-criado_em')[:3]
+            })
+        except Exception as e:
+            logger.error(f"Erro inesperado ao criar usuário: {str(e)}")
+            return render(request, 'home.html', {
+                'error': 'Erro no sistema. Por favor, tente novamente.',
+                'usuarios': Usuario.objects.all().order_by('-criado_em')[:3]
+            })
+    
+    # Limitar número de usuários exibidos
+    usuarios = Usuario.objects.all().order_by('-criado_em')[:3]
+    return render(request, 'home.html', {'usuarios': usuarios})
+
+@require_http_methods(["GET", "POST"])
+def logout_usuario(request):
+    """View para fazer logout do usuário de forma segura"""
+    request.session.flush()
+    return redirect('home')
+
+def criar_departamentos_iniciais():
+    """Cria departamentos iniciais se não existirem"""
+    departamentos = [
+        {'nome': 'Atendimento', 'descricao': 'Departamento de Atendimento'},
+        {'nome': 'Vendas', 'descricao': 'Departamento de Vendas'},
+        {'nome': 'Marketing', 'descricao': 'Departamento de Marketing'},
+        {'nome': 'TI', 'descricao': 'Tecnologia da Informação'},
+        {'nome': 'Recursos Humanos', 'descricao': 'Departamento de RH'},
+        {'nome': 'Financeiro', 'descricao': 'Departamento Financeiro'},
+        {'nome': 'Operações', 'descricao': 'Departamento de Operações'},
+    ]
+    
+    for dept in departamentos:
+        Departamento.objects.get_or_create(
+            nome=security.sanitize_input(dept['nome'], max_length=50),
+            defaults={'descricao': security.sanitize_input(dept['descricao'], max_length=200)}
+        )
+
+# === LÓGICA DO DASHBOARD DE ADMIN ===
+def _get_dashboard_context():
+    """Função helper para buscar os dados do dashboard de admin"""
+    # Consultas para os cartões
+    total_chamados = Chamado.objects.count()
+    pendentes_count = Chamado.objects.filter(status='em_andamento').count()
+    solucionados_count = Chamado.objects.filter(status='resolvido').count()
+    # Apenas urgentes que ainda estão em andamento
+    urgentes_count = Chamado.objects.filter(urgencia='urgente', status='em_andamento').count()
+    
+    # Lista de chamados recentes
+    chamados_recentes = Chamado.objects.all().order_by('-criado_em')[:5] # Pega os 5 mais recentes
+
+    # Lógica do Gráfico (Exemplo: % de pendentes)
+    if total_chamados > 0:
+        # Garante que não haja divisão por zero se não houver pendentes
+        porcentagem_pendentes = round((pendentes_count / total_chamados) * 100) if pendentes_count > 0 else 0
+    else:
+        porcentagem_pendentes = 0
+
+    context = {
+        'total_chamados': total_chamados,
+        'pendentes_count': pendentes_count,
+        'solucionados_count': solucionados_count,
+        'urgentes_count': urgentes_count,
+        'chamados_recentes': chamados_recentes,
+        'porcentagem_pendentes': porcentagem_pendentes,
+    }
+    return context
+# === FIM DA LÓGICA DO DASHBOARD ===
+
+
+# VIEWS OTIMIZADAS PARA DASHBOARD E CHAMADOS
+@usuario_required
+@require_http_methods(["GET"])
+def dashboard(request):
+    """Dashboard principal - exibe o dashboard de admin (todos_chamados) ou o formulário de colaborador (initial)"""
+    
+    if request.usuario.tipo_usuario == 'suporte':
+        # Para suporte: mostrar o dashboard completo
+        context = _get_dashboard_context()
+        context['usuario'] = request.usuario
+        return render(request, 'todos_chamados.html', context)
+    
+    else:
+        # Para colaborador: mostrar o formulário de 'Novo Chamado'
+        criar_departamentos_iniciais()
+        departamentos = Departamento.objects.all()
+        return render(request, 'initial.html', {
+            'departamentos': departamentos,
+            'usuario': request.usuario
+        })
+
+@usuario_required
+@require_http_methods(["GET", "POST"])
+@rate_limit(max_requests=50, window=3600)
+def sistema_chamados(request):
+    """View unificada para criação de chamados (página 'Novo Chamado')"""
+    criar_departamentos_iniciais()
+    departamentos = Departamento.objects.all()
+    
+    if request.method == 'POST':
+        return criar_chamado_api(request)
+    
+    # Renderiza a página de formulário
+    return render(request, 'initial.html', {
+        'departamentos': departamentos,
+        'usuario': request.usuario
+    })
+
+@usuario_required
+@require_http_methods(["POST"])
+@rate_limit(max_requests=20, window=3600)
+def criar_chamado_api(request):
+    """API para criar chamado via AJAX/JSON com segurança - CORRIGIDA"""
+    try:
+        # ✅ CORREÇÃO: Verificar se é requisição AJAX ou form tradicional
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        
+        if request.content_type == 'application/json':
+            try:
+                # Limitar tamanho do body JSON
+                if len(request.body) > 10000:  # 10KB max
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'Payload muito grande'
+                    }, status=413)
+                    
+                data = json.loads(request.body)
+            except json.JSONDecodeError as e:
+                logger.warning(f"JSON inválido recebido de {request.usuario.username}: {e}")
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Dados inválidos'
+                }, status=400)
+        else:
+            data = request.POST
+        
+        # ✅ CORREÇÃO: Sanitizar e validar dados de forma mais robusta
+        titulo = security.sanitize_input(data.get('titulo', '').strip(), max_length=200)
+        descricao = security.sanitize_input(data.get('descricao', '').strip(), max_length=1000)
+        departamento_id = data.get('departamento')
+        localizacao = data.get('localizacao', 'presencial')
+        modalidade_presencial = localizacao == 'presencial'
+        
+        logger.info(f"Tentativa de criar chamado: {titulo} - Dept: {departamento_id} - Local: {localizacao}")
+        
+        # ✅ CORREÇÃO: Validações mais detalhadas
+        if not titulo:
+            return JsonResponse({
+                'success': False,
+                'message': 'Título é obrigatório!'
+            }, status=400)
+        
+        if not descricao:
+            return JsonResponse({
+                'success': False,
+                'message': 'Descrição é obrigatória!'
+            }, status=400)
+        
+        if not departamento_id:
+            return JsonResponse({
+                'success': False,
+                'message': 'Departamento é obrigatório!'
+            }, status=400)
+        
+        if len(titulo) < 5:
+            return JsonResponse({
+                'success': False,
+                'message': 'Título muito curto (mínimo 5 caracteres)'
+            }, status=400)
+        
+        if len(descricao) < 10:
+            return JsonResponse({
+                'success': False,
+                'message': 'Descrição muito curta (mínimo 10 caracteres)'
+            }, status=400)
+        
+        try:
+            departamento = Departamento.objects.get(id_departamento=departamento_id)
+        except (Departamento.DoesNotExist, ValueError) as e:
+            logger.error(f"Departamento não encontrado: {departamento_id} - {e}")
+            return JsonResponse({
+                'success': False,
+                'message': 'Departamento selecionado não encontrado!'
+            }, status=400)
+        
+        # ✅ CORREÇÃO: Criar chamado com tratamento de erro específico
+        try:
+            chamado = Chamado.objects.create(
+                titulo=titulo,
+                descricao=descricao,
+                nome_solicitante=request.usuario.username,
+                departamento=departamento,
+                modalidade_presencial=modalidade_presencial,
+                status='em_andamento',
+                usuario=request.usuario
+            )
+            
+            logger.info(f"Chamado criado com sucesso: {chamado.id_legivel} por {request.usuario.username}")
+            
+        except Exception as e:
+            logger.error(f"Erro ao criar chamado no banco: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'message': 'Erro ao salvar chamado no banco de dados'
+            }, status=500)
+        
+        # ✅ CORREÇÃO: Criar primeira mensagem com tratamento de erro
+        try:
+            criar_interacoes_iniciais(chamado, request.usuario.username, departamento, modalidade_presencial)
+        except Exception as e:
+            logger.error(f"Erro ao criar interações iniciais: {str(e)}")
+            # Não falha o chamado por erro nas interações
+        
+        # ✅ CORREÇÃO: Agendar verificações em thread separada
+        try:
+            verificar_chamado_apos_10_minutos(chamado.id_chamado)
+        except Exception as e:
+            logger.error(f"Erro ao agendar verificações: {str(e)}")
+            # Não falha o chamado por erro no agendamento
+        
+        # ✅ CORREÇÃO: Resposta de sucesso detalhada
+        response_data = {
+            'success': True,
+            'message': 'Chamado criado com sucesso!',
+            'chamado_id': str(chamado.id_chamado),
+            'chamado_legivel': chamado.id_legivel,
+            'nome_solicitante': request.usuario.username,
+            'departamento': departamento.nome,
+            'titulo': titulo,
+            'modalidade': 'Presencial' if modalidade_presencial else 'Home Office',
+            'status': chamado.get_status_display(),
+            'urgencia': chamado.get_urgencia_display(),
+            'sequencia_ativa': True
+        }
+        
+        logger.info(f"Resposta enviada para criação de chamado: {chamado.id_legivel}")
+        return JsonResponse(response_data)
+        
+    except Exception as e:
+        logger.error(f"Erro crítico ao criar chamado via API: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'message': 'Erro interno do servidor. Tente novamente.'
+        }, status=500)
+
+def criar_interacoes_iniciais(chamado, nome_solicitante, departamento, modalidade_presencial):
+    """Cria APENAS a primeira mensagem do bot e notifica suportes SEPARADAMENTE"""
+    try:
+        interacoes = bot_dialogos.get_sequencia_inicial_completa(
+            chamado=chamado,
+            nome_solicitante=nome_solicitante,
+            departamento=departamento,
+            modalidade_presencial=modalidade_presencial
+        )
+        
+        if interacoes:
+            # ✅ APENAS a primeira mensagem vai para o chat do chamado
+            primeira_interacao = interacoes[0]
+            InteracaoChamado.objects.create(
+                chamado=chamado,
+                remetente='bot',
+                mensagem=primeira_interacao['mensagem'],
+                acao_bot=primeira_interacao.get('acao_bot', 'inicio')
+            )
+            logger.info(f"Interação inicial criada para chamado {chamado.id_legivel}")
+            
+            # ✅ NOTIFICAR USUÁRIOS DE SUPORTE VIA MODEL SEPARADO
+            notificar_suportes_novo_chamado(chamado)
+            
+    except Exception as e:
+        logger.error(f"Erro ao criar interações iniciais: {str(e)}")
+        # Cria uma mensagem padrão em caso de erro
+        InteracaoChamado.objects.create(
+            chamado=chamado,
+            remetente='bot',
+            mensagem="Olá! Recebi seu chamado e já estou trabalhando para ajudá-lo.",
+            acao_bot='inicio'
+        )
+
+def notificar_suportes_novo_chamado(chamado):
+    """Notifica todos os usuários de suporte sobre novo chamado - MODEL SEPARADO"""
+    try:
+        usuarios_suporte = Usuario.objects.filter(tipo_usuario='suporte')
+        
+        for usuario_suporte in usuarios_suporte:
+            # ✅ Criar notificação em modelo SEPARADO (não InteracaoChamado)
+            Notificacao.objects.create(
+                usuario=usuario_suporte,
+                chamado=chamado,
+                mensagem=f"🚨 **NOVO CHAMADO CRIADO**\n📝 {chamado.titulo}\n👤 {chamado.nome_solicitante}\n🏢 {chamado.departamento.nome}\n🆔 {chamado.id_legivel}",
+                tipo='novo_chamado'
+            )
+        
+        logger.info(f"Notificações enviadas para {usuarios_suporte.count()} usuários de suporte")
+        
+    except Exception as e:
+        logger.error(f"Erro ao notificar suportes: {str(e)}")
+
+def verificar_chamado_apos_10_minutos(id_chamado):
+    """Verifica se o chamado foi atendido após 10 minutos"""
+    def check_chamado():
+        time.sleep(600)  # 10 minutos
+        try:
+            chamado = Chamado.objects.get(id_chamado=id_chamado)
+            if chamado.status == 'em_andamento':
+                verificacao = bot_dialogos.get_verificacao_tempo()
+                InteracaoChamado.objects.create(
+                    chamado=chamado,
+                    remetente='bot',
+                    mensagem=verificacao['mensagem'],
+                    acao_bot=verificacao['acao_bot']
+                )
+                verificar_chamado_apos_5_minutos(id_chamado)
+        except Chamado.DoesNotExist:
+            logger.warning(f"Chamado {id_chamado} não encontrado para verificação")
+        except Exception as e:
+            logger.error(f"Erro na verificação de 10min do chamado {id_chamado}: {str(e)}")
+    
+    thread = threading.Thread(target=check_chamado)
+    thread.daemon = True
+    thread.start()
+
+def verificar_chamado_apos_5_minutos(id_chamado):
+    """Verificação adicional após 5 minutos da primeira verificação"""
+    def check_chamado():
+        time.sleep(300)  # 5 minutos
+        try:
+            chamado = Chamado.objects.get(id_chamado=id_chamado)
+            if chamado.status == 'em_andamento':
+                verificacao_urgente = bot_dialogos.get_verificacao_urgente()
+                InteracaoChamado.objects.create(
+                    chamado=chamado,
+                    remetente='bot',
+                    mensagem=verificacao_urgente['mensagem'],
+                    acao_bot=verificacao_urgente['acao_bot']
+                )
+        except Chamado.DoesNotExist:
+            logger.warning(f"Chamado {id_chamado} não encontrado para verificação urgente")
+        except Exception as e:
+            logger.error(f"Erro na verificação urgente do chamado {id_chamado}: {str(e)}")
+    
+    thread = threading.Thread(target=check_chamado)
+    thread.daemon = True
+    thread.start()
+
+@csrf_exempt
+@usuario_required
+@require_http_methods(["POST"])
+@rate_limit(max_requests=10, window=3600)
+def confirmar_atendimento(request, id_chamado):
+    """API para o suporte confirmar que atendeu o chamado"""
+    if not security.validate_uuid(id_chamado):
+        return JsonResponse({
+            'success': False,
+            'message': 'ID de chamado inválido'
+        }, status=400)
+    
+    try:
+        if request.usuario.tipo_usuario != 'suporte':
+            logger.warning(f"Tentativa de confirmar atendimento sem permissão: {request.usuario.username}")
+            return JsonResponse({
+                'success': False,
+                'message': 'Apenas usuários de suporte podem confirmar atendimentos.'
+            }, status=403)
+        
+        chamado = Chamado.objects.get(id_chamado=id_chamado)
+        chamado.status = 'resolvido'
+        chamado.data_resolucao = timezone.now()
+        chamado.save()
+        
+        finalizacao = bot_dialogos.get_finalizacao_suporte()
+        InteracaoChamado.objects.create(
+            chamado=chamado,
+            remetente='bot',
+            mensagem=finalizacao['mensagem'],
+            acao_bot=finalizacao['acao_bot']
+        )
+        
+        logger.info(f"Chamado {id_chamado} marcado como resolvido por {request.usuario.username}")
+        return JsonResponse({
+            'success': True,
+            'message': 'Chamado marcado como resolvido com sucesso!'
+        })
+        
+    except Chamado.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Chamado não encontrado'
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Erro ao confirmar atendimento: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erro interno do servidor'
+        }, status=500)
+
+@csrf_exempt
+@usuario_required
+@require_http_methods(["POST"])
+@rate_limit(max_requests=10, window=3600)
+def usuario_confirmar_resolucao(request, id_chamado):
+    """API para o usuário confirmar que o problema foi resolvido"""
+    if not security.validate_uuid(id_chamado):
+        return JsonResponse({
+            'success': False,
+            'message': 'ID de chamado inválido'
+        }, status=400)
+    
+    try:
+        chamado = Chamado.objects.get(id_chamado=id_chamado)
+        
+        if chamado.usuario != request.usuario:
+            logger.warning(f"Tentativa de confirmar resolução de chamado alheio: {request.usuario.username} -> {id_chamado}")
+            return JsonResponse({
+                'success': False,
+                'message': 'Você só pode confirmar resolução dos seus próprios chamados.'
+            }, status=403)
+        
+        chamado.status = 'resolvido'
+        chamado.data_resolucao = timezone.now()
+        chamado.save()
+        
+        InteracaoChamado.objects.create(
+            chamado=chamado,
+            remetente='usuario',
+            mensagem="✅ Confirmo que meu problema foi resolvido!"
+        )
+        
+        finalizacao = bot_dialogos.get_finalizacao_usuario()
+        InteracaoChamado.objects.create(
+            chamado=chamado,
+            remetente='bot',
+            mensagem=finalizacao['mensagem'],
+            acao_bot=finalizacao['acao_bot']
+        )
+        
+        logger.info(f"Chamado {id_chamado} finalizado pelo usuário {request.usuario.username}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Chamado finalizado com sucesso!'
+        })
+            
+    except Chamado.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Chamado não encontrado'
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Erro ao confirmar resolução: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erro interno do servidor'
+        }, status=500)
+
+@csrf_exempt
+@usuario_required
+@require_http_methods(["GET", "POST"])
+@rate_limit(max_requests=30, window=3600)
+def proxima_mensagem_bot(request, id_chamado):
+    """API para adicionar próxima mensagem na sequência (UMA DE CADA VEZ)"""
+    if not security.validate_uuid(id_chamado):
+        return JsonResponse({
+            'success': False,
+            'message': 'ID de chamado inválido'
+        }, status=400)
+    
+    try:
+        chamado = Chamado.objects.get(id_chamado=id_chamado)
+        
+        if chamado.usuario != request.usuario and request.usuario.tipo_usuario != 'suporte':
+            logger.warning(f"Acesso não autorizado ao chamado {id_chamado} por {request.usuario.username}")
+            return JsonResponse({
+                'success': False,
+                'message': 'Acesso não autorizado a este chamado.'
+            }, status=403)
+        
+        # Contar quantas mensagens do bot já existem
+        mensagens_count = InteracaoChamado.objects.filter(
+            chamado=chamado, 
+            remetente='bot'
+        ).count()
+        
+        # Pegar a sequência completa da biblioteca
+        sequencia = bot_dialogos.get_sequencia_inicial_completa(
+            chamado=chamado,
+            nome_solicitante=chamado.nome_solicitante,
+            departamento=chamado.departamento,
+            modalidade_presencial=chamado.modalidade_presencial
+        )
+        
+        # Verificar se já completou todas as mensagens
+        if mensagens_count >= len(sequencia):
+            return JsonResponse({
+                'success': True,
+                'completo': True,
+                'message': 'Sequência completa'
+            })
+        
+        # Pegar próxima mensagem da biblioteca
+        proxima_msg = sequencia[mensagens_count]
+        
+        # Criar a mensagem no banco
+        InteracaoChamado.objects.create(
+            chamado=chamado,
+            remetente='bot',
+            mensagem=proxima_msg['mensagem'],
+            acao_bot=proxima_msg.get('acao_bot', 'mensagem')
+        )
+        
+        # Verificar se é a última mensagem
+        completo = (mensagens_count + 1) >= len(sequencia)
+        
+        return JsonResponse({
+            'success': True,
+            'mensagem': proxima_msg['mensagem'],
+            'indice': mensagens_count + 1,
+            'total': len(sequencia),
+            'completo': completo
+        })
+        
+    except Chamado.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Chamado não encontrado'
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Erro em proxima_mensagem_bot: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erro interno do servidor'
+        }, status=500)
+
+@csrf_exempt
+@usuario_required
+@require_http_methods(["GET"])
+@rate_limit(max_requests=60, window=3600)
+def carregar_mensagens_chat(request, id_chamado):
+    """API para carregar todas as mensagens do chat - CORRIGIDA"""
+    if not security.validate_uuid(id_chamado):
+        return JsonResponse({
+            'success': False,
+            'message': 'ID de chamado inválido'
+        }, status=400)
+    
+    try:
+        chamado = Chamado.objects.get(id_chamado=id_chamado)
+        
+        if chamado.usuario != request.usuario and request.usuario.tipo_usuario != 'suporte':
+            logger.warning(f"Acesso não autorizado ao chat do chamado {id_chamado} por {request.usuario.username}")
+            return JsonResponse({
+                'success': False,
+                'message': 'Acesso não autorizado a este chamado.'
+            }, status=403)
+        
+        # ✅ CORREÇÃO: Buscar TODAS as interações do chat
+        interacoes = InteracaoChamado.objects.filter(chamado=chamado).order_by('criado_em')
+        
+        mensagens = []
+        for interacao in interacoes:
+            hora_local = timezone.localtime(interacao.criado_em)
+            mensagens.append({
+                'remetente': interacao.remetente,
+                'mensagem': interacao.mensagem,
+                'hora': hora_local.strftime('%H:%M'),
+                'acao_bot': interacao.acao_bot
+                # ✅ NÃO incluir 'usuario' pois o campo não existe no modelo
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'chamado_id': str(chamado.id_chamado),
+            'chamado_legivel': chamado.id_legivel,
+            'titulo': chamado.titulo,
+            'status': chamado.get_status_display(),
+            'urgencia': chamado.get_urgencia_display(),
+            'mensagens': mensagens
+        })
+        
+    except Chamado.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Chamado não encontrado'
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Erro em carregar_mensagens_chat: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erro interno do servidor'
+        }, status=500)
+
+@csrf_exempt
+@usuario_required
+@require_http_methods(["POST"])
+@rate_limit(max_requests=30, window=3600)
+def enviar_mensagem(request, id_chamado):
+    """API para enviar mensagens no chat do chamado com segurança - CORRIGIDA"""
+    if not security.validate_uuid(id_chamado):
+        return JsonResponse({
+            'success': False,
+            'message': 'ID de chamado inválido'
+        }, status=400)
+    
+    try:
+        if request.content_type == 'application/json':
+            if len(request.body) > 5000:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Mensagem muito longa'
+                }, status=413)
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+            
+        mensagem = security.sanitize_input(data.get('mensagem', '').strip(), max_length=500)
+        
+        if not mensagem:
+            return JsonResponse({
+                'success': False,
+                'message': 'Mensagem não pode estar vazia'
+            }, status=400)
+        
+        if len(mensagem) < 2:
+            return JsonResponse({
+                'success': False,
+                'message': 'Mensagem muito curta'
+            }, status=400)
+        
+        chamado = Chamado.objects.get(id_chamado=id_chamado)
+        
+        if chamado.usuario != request.usuario and request.usuario.tipo_usuario != 'suporte':
+            logger.warning(f"Tentativa de enviar mensagem em chamado alheio: {request.usuario.username} -> {id_chamado}")
+            return JsonResponse({
+                'success': False,
+                'message': 'Acesso não autorizado a este chamado.'
+            }, status=403)
+        
+        # ✅ CORREÇÃO: Criar mensagem sem campo usuario
+        InteracaoChamado.objects.create(
+            chamado=chamado,
+            remetente='usuario',
+            mensagem=mensagem
+            # ❌ REMOVIDO: usuario=request.usuario (campo não existe no modelo)
+        )
+        
+        # ✅ CORREÇÃO: Passar request.usuario para a resposta inteligente
+        resposta_data = bot_dialogos.get_resposta_inteligente(mensagem, chamado, request.usuario)
+        
+        InteracaoChamado.objects.create(
+            chamado=chamado,
+            remetente='bot',
+            mensagem=resposta_data['mensagem'],
+            acao_bot=resposta_data['acao_bot']
+        )
+        
+        logger.info(f"Mensagem enviada no chamado {id_chamado} por {request.usuario.username}")
+        
+        return JsonResponse({
+            'success': True,
+            'resposta': resposta_data['mensagem'],
+            'intencao_detectada': resposta_data.get('intencao_detectada', 'nao_identificada')
+        })
+        
+    except Chamado.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Chamado não encontrado'
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Erro ao enviar mensagem: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erro interno do servidor'
+        }, status=500)
+
+@csrf_exempt
+@usuario_required
+@require_http_methods(["GET"])
+@rate_limit(max_requests=60, window=3600)
+def carregar_notificacoes(request):
+    """API para carregar notificações do usuário - ATUALIZADA PARA MODEL SEPARADO"""
+    try:
+        # ✅ Buscar notificações do modelo SEPARADO
+        notificacoes = Notificacao.objects.filter(
+            usuario=request.usuario,
+            lida=False
+        ).order_by('-criado_em')[:10]
+        
+        notificacoes_data = []
+        for notificacao in notificacoes:
+            hora_local = timezone.localtime(notificacao.criado_em)
+            notificacoes_data.append({
+                'id': str(notificacao.id_notificacao),
+                'mensagem': notificacao.mensagem,
+                'chamado_id': str(notificacao.chamado.id_chamado),
+                'chamado_legivel': notificacao.chamado.id_legivel,
+                'hora': hora_local.strftime('%H:%M'),
+                'tipo': notificacao.tipo
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'notificacoes': notificacoes_data,
+            'total_nao_lidas': notificacoes.count()
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro ao carregar notificações: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'notificacoes': [],
+            'total_nao_lidas': 0
+        })
+
+@csrf_exempt
+@usuario_required
+@require_http_methods(["POST"])
+@rate_limit(max_requests=30, window=3600)
+def marcar_notificacao_lida(request, id_notificacao):
+    """API para marcar notificação como lida - ATUALIZADA PARA MODEL SEPARADO"""
+    try:
+        notificacao = Notificacao.objects.get(
+            id_notificacao=id_notificacao,
+            usuario=request.usuario
+        )
+        notificacao.lida = True
+        notificacao.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Notificação marcada como lida'
+        })
+        
+    except Notificacao.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Notificação não encontrada'
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Erro ao marcar notificação como lida: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erro interno do servidor'
+        }, status=500)
+
+@usuario_required
+@require_http_methods(["GET"])
+def api_info(request):
+    """Endpoint para API JSON com informações do sistema"""
+    return JsonResponse({
+        'message': '🚀 API Projeto AI - Online!',
+        'usuario': {
+            'username': request.usuario.username,
+            'tipo_usuario': request.usuario.tipo_usuario,
+        },
+        'endpoints': {
+            'admin': '/admin/',
+            'api_info': '/api/info/',
+            'home': '/',
+            'dashboard': '/dashboard/',
+            'sistema_chamados': '/chamados/',
+            'logout': '/logout/',
+        }
+    })
+
+@usuario_required
+@require_http_methods(["GET"])
+def detalhes_chamado(request, id_chamado):
+    """Página de detalhes do chamado"""
+    if not security.validate_uuid(id_chamado):
+        return HttpResponseForbidden("ID de chamado inválido")
+    
+    chamado = get_object_or_404(Chamado, id_chamado=id_chamado)
+    
+    if chamado.usuario != request.usuario and request.usuario.tipo_usuario != 'suporte':
+        logger.warning(f"Tentativa de acesso não autorizado aos detalhes do chamado {id_chamado} por {request.usuario.username}")
+        return HttpResponseForbidden("Acesso não autorizado a este chamado.")
+    
+    # ✅ CORREÇÃO: Buscar TODAS as interações do chat
+    interacoes = InteracaoChamado.objects.filter(chamado=chamado).order_by('criado_em')
+    
+    return render(request, 'detalhes_chamado.html', {
+        'chamado': chamado,
+        'interacoes': interacoes,
+        'usuario': request.usuario
+    })
+
+@usuario_required
+@require_http_methods(["GET"])
+def meus_chamados(request):
+    """Página para listar os chamados do usuário (Redireciona para o formulário/dashboard de colaborador)"""
+    # Esta view agora renderiza o mesmo que o dashboard de colaborador
+    criar_departamentos_iniciais()
+    departamentos = Departamento.objects.all()
+    return render(request, 'initial.html', {
+        'departamentos': departamentos,
+        'usuario': request.usuario
+    })
+
+
+@usuario_required
+@require_http_methods(["GET"])
+def todos_chamados(request):
+    """Página para listar todos os chamados (agora usa a lógica do dashboard de admin)"""
+    if request.usuario.tipo_usuario != 'suporte':
+        logger.warning(f"Tentativa de acesso a todos_chamados por não-suporte: {request.usuario.username}")
+        return HttpResponseForbidden("Apenas usuários de suporte podem acessar esta página.")
+    
+    # Reutiliza a lógica do dashboard
+    context = _get_dashboard_context()
+    context['usuario'] = request.usuario
+    
+    return render(request, 'todos_chamados.html', context)
+
+
+@csrf_exempt
+@usuario_required
+@require_http_methods(["POST"])
+@rate_limit(max_requests=20, window=3600)
+def atualizar_status_chamado(request, id_chamado):
+    """API para atualizar o status de um chamado"""
+    if not security.validate_uuid(id_chamado):
+        return JsonResponse({
+            'success': False,
+            'message': 'ID de chamado inválido'
+        }, status=400)
+    
+    try:
+        chamado = Chamado.objects.get(id_chamado=id_chamado)
+        
+        if request.usuario.tipo_usuario != 'suporte' and chamado.usuario != request.usuario:
+            logger.warning(f"Tentativa de atualizar status não autorizada: {request.usuario.username} -> {id_chamado}")
+            return JsonResponse({
+                'success': False,
+                'message': 'Acesso não autorizado.'
+            }, status=403)
+        
+        # Verificar o content type para determinar como ler os dados
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+        
+        novo_status = data.get('status')
+        
+        if novo_status not in dict(Chamado.STATUS_CHOICES):
+            return JsonResponse({
+                'success': False,
+                'message': 'Status inválido.'
+            }, status=400)
+        
+        chamado.status = novo_status
+        if novo_status == 'resolvido':
+            chamado.data_resolucao = timezone.now()
+        chamado.save()
+        
+        InteracaoChamado.objects.create(
+            chamado=chamado,
+            remetente='bot',
+            mensagem=f"📊 **Status atualizado:** {chamado.get_status_display()}",
+            acao_bot='atualizacao_status'
+        )
+        
+        logger.info(f"Status do chamado {id_chamado} atualizado para {novo_status} por {request.usuario.username}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Status atualizado com sucesso!',
+            'novo_status': chamado.get_status_display()
+        })
+        
+    except Chamado.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Chamado não encontrado'
+        }, status=4404)
+    except Exception as e:
+        logger.error(f"Erro ao atualizar status: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erro interno do servidor'
+        }, status=500)
+    
+@csrf_exempt
+@usuario_required
+@require_http_methods(["GET"])
+@rate_limit(max_requests=120, window=3600)
+def verificar_novas_mensagens(request, id_chamado):
+    """API para verificar se há novas mensagens no chat - CORRIGIDA PARA UUID"""
+    print(f"🔍 API verificar_novas_mensagens chamada para chamado: {id_chamado}")
+    
+    if not security.validate_uuid(id_chamado):
+        return JsonResponse({
+            'success': False,
+            'message': 'ID de chamado inválido'
+        }, status=400)
+    
+    try:
+        chamado = Chamado.objects.get(id_chamado=id_chamado)
+        
+        # Buscar a última mensagem conhecida (se fornecida)
+        ultima_mensagem_id = request.GET.get('ultima_mensagem_id')
+        print(f"📊 Última mensagem ID recebida: {ultima_mensagem_id}")
+        
+        # ✅ CORREÇÃO: Buscar todas as mensagens do chamado
+        todas_mensagens = InteracaoChamado.objects.filter(
+            chamado=chamado
+        ).order_by('criado_em')
+        
+        # Se não há mensagens, retornar vazio
+        if not todas_mensagens.exists():
+            return JsonResponse({
+                'success': True,
+                'novas_mensagens': [],
+                'total_novas': 0,
+                'ultima_mensagem_id': None
+            })
+        
+        # ✅ CORREÇÃO: Nova lógica usando UUID do chamado como referência
+        novas_mensagens = []
+        ultima_id_encontrada = None
+        
+        if ultima_mensagem_id:
+            try:
+                # Buscar a última mensagem conhecida pelo seu ID (se for UUID válido)
+                if security.validate_uuid(ultima_mensagem_id):
+                    # Se é um UUID, usamos uma lógica diferente
+                    # Vamos buscar todas as mensagens e comparar timestamps
+                    ultima_mensagem_conhecida = InteracaoChamado.objects.filter(
+                        id_interacao=ultima_mensagem_id
+                    ).first()
+                    
+                    if ultima_mensagem_conhecida:
+                        # Buscar mensagens mais recentes que a última conhecida
+                        novas_mensagens = InteracaoChamado.objects.filter(
+                            chamado=chamado,
+                            criado_em__gt=ultima_mensagem_conhecida.criado_em
+                        ).order_by('criado_em')
+                    else:
+                        # Se não encontrou a mensagem específica, retornar todas
+                        novas_mensagens = todas_mensagens
+                else:
+                    # Se não é UUID, tentar como inteiro (backward compatibility)
+                    try:
+                        ultima_id_int = int(ultima_mensagem_id)
+                        ultima_mensagem_conhecida = InteracaoChamado.objects.filter(
+                            id_interacao=ultima_id_int
+                        ).first()
+                        
+                        if ultima_mensagem_conhecida:
+                            novas_mensagens = InteracaoChamado.objects.filter(
+                                chamado=chamado,
+                                criado_em__gt=ultima_mensagem_conhecida.criado_em
+                            ).order_by('criado_em')
+                        else:
+                            novas_mensagens = todas_mensagens
+                    except ValueError:
+                        # Se não é nem UUID nem inteiro, retornar todas as mensagens
+                        novas_mensagens = todas_mensagens
+            except Exception as e:
+                print(f"⚠️ Erro ao processar última mensagem ID, retornando todas: {e}")
+                novas_mensagens = todas_mensagens
+        else:
+            # Se não há última mensagem ID, retornar todas as mensagens
+            novas_mensagens = todas_mensagens
+        
+        print(f"📨 Novas mensagens encontradas: {novas_mensagens.count()}")
+        
+        # Preparar dados das mensagens
+        mensagens_data = []
+        for mensagem in novas_mensagens:
+            hora_local = timezone.localtime(mensagem.criado_em)
+            mensagens_data.append({
+                'id': str(mensagem.id_interacao),  # ✅ Converter para string
+                'remetente': mensagem.remetente,
+                'mensagem': mensagem.mensagem,
+                'hora': hora_local.strftime('%H:%M'),
+                'acao_bot': mensagem.acao_bot
+            })
+            ultima_id_encontrada = str(mensagem.id_interacao)
+        
+        return JsonResponse({
+            'success': True,
+            'novas_mensagens': mensagens_data,
+            'total_novas': len(mensagens_data),
+            'ultima_mensagem_id': ultima_id_encontrada or ultima_mensagem_id
+        })
+        
+    except Chamado.DoesNotExist:
+        print(f"❌ Chamado não encontrado: {id_chamado}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Chamado não encontrado'
+        }, status=404)
+    except Exception as e:
+        print(f"❌ Erro em verificar_novas_mensagens: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erro interno do servidor'
+        }, status=500)
+    
+
+@usuario_required
+@require_http_methods(["GET"])
+def api_chamados_recentes(request):
+    """API para verificar chamados recentes (últimos 5 minutos)"""
+    if request.usuario.tipo_usuario != 'suporte':
+        return JsonResponse({
+            'success': False,
+            'message': 'Acesso não autorizado'
+        }, status=403)
+    
+    try:
+        # Calcular timestamp de 5 minutos atrás
+        cinco_minutos_atras = timezone.now() - timezone.timedelta(minutes=5)
+        
+        # Contar chamados criados nos últimos 5 minutos
+        novos_chamados_count = Chamado.objects.filter(
+            criado_em__gte=cinco_minutos_atras
+        ).count()
+        
+        return JsonResponse({
+            'success': True,
+            'novos_chamados': novos_chamados_count,
+            'ultima_verificacao': timezone.now().strftime('%H:%M:%S')
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro em api_chamados_recentes: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erro interno do servidor'
+        }, status=500)
+    
+@csrf_exempt
+@usuario_required
+@require_http_methods(["GET"])
+@rate_limit(max_requests=120, window=3600)
+def verificar_novas_mensagens_inteligente(request, id_chamado):
+    """API INTELIGENTE para verificar novas mensagens - CORRIGIDA PARA MENSAGENS JÁ VISTAS"""
+    print(f"🔍 API verificar_novas_mensagens_inteligente chamada para chamado: {id_chamado}")
+    
+    if not security.validate_uuid(id_chamado):
+        return JsonResponse({
+            'success': False,
+            'message': 'ID de chamado inválido'
+        }, status=400)
+    
+    try:
+        chamado = Chamado.objects.get(id_chamado=id_chamado)
+        
+        # ✅ NOVO: Buscar última mensagem visualizada (se fornecida)
+        ultima_mensagem_visualizada_id = request.GET.get('ultima_visualizada_id')
+        print(f"📊 Última mensagem VISUALIZADA ID: {ultima_mensagem_visualizada_id}")
+        
+        # ✅ Buscar TODAS as mensagens do chamado
+        todas_mensagens = InteracaoChamado.objects.filter(
+            chamado=chamado
+        ).order_by('criado_em')
+        
+        if not todas_mensagens.exists():
+            return JsonResponse({
+                'success': True,
+                'novas_mensagens': [],
+                'total_novas': 0,
+                'ultima_mensagem_id': None,
+                'ultima_visualizada_id': None
+            })
+        
+        # ✅ LÓGICA INTELIGENTE: Filtrar apenas mensagens NÃO visualizadas
+        novas_mensagens = []
+        ultima_id_encontrada = None
+        
+        if ultima_mensagem_visualizada_id:
+            try:
+                # Buscar a última mensagem visualizada
+                if security.validate_uuid(ultima_mensagem_visualizada_id):
+                    ultima_visualizada = InteracaoChamado.objects.filter(
+                        id_interacao=ultima_mensagem_visualizada_id
+                    ).first()
+                    
+                    if ultima_visualizada:
+                        # ✅ FILTRAR: Apenas mensagens MAIS RECENTES que a última visualizada
+                        novas_mensagens = InteracaoChamado.objects.filter(
+                            chamado=chamado,
+                            criado_em__gt=ultima_visualizada.criado_em
+                        ).order_by('criado_em')
+                    else:
+                        # Se não encontrou a mensagem específica, considerar TODAS como não visualizadas
+                        novas_mensagens = todas_mensagens
+                else:
+                    # Se não é UUID válido, considerar TODAS como não visualizadas
+                    novas_mensagens = todas_mensagens
+            except Exception as e:
+                print(f"⚠️ Erro ao processar última mensagem visualizada, retornando todas: {e}")
+                novas_mensagens = todas_mensagens
+        else:
+            # ✅ Se não há última mensagem visualizada, TODAS são consideradas novas
+            novas_mensagens = todas_mensagens
+        
+        print(f"📨 Novas mensagens NÃO VISUALIZADAS encontradas: {novas_mensagens.count()}")
+        
+        # ✅ EXCEÇÕES: Não notificar sobre certos tipos de mensagens do bot
+        mensagens_filtradas = []
+        for mensagem in novas_mensagens:
+            # ✅ EXCEÇÃO 1: Não notificar mensagens de "status atualizado" do bot
+            if (mensagem.remetente == 'bot' and 
+                'status atualizado' in mensagem.mensagem.lower()):
+                print(f"🚫 Ignorando mensagem de status atualizado: {mensagem.mensagem[:50]}...")
+                continue
+            
+            # ✅ EXCEÇÃO 2: Não notificar mensagens de "verificação" automática
+            if (mensagem.remetente == 'bot' and 
+                any(palavra in mensagem.mensagem.lower() for palavra in ['verificando', 'aguardando', 'confirmando'])):
+                print(f"🚫 Ignorando mensagem de verificação automática: {mensagem.mensagem[:50]}...")
+                continue
+            
+            # ✅ EXCEÇÃO 3: Não notificar mensagens muito antigas (mais de 1 hora)
+            tempo_decorrido = timezone.now() - mensagem.criado_em
+            if tempo_decorrido.total_seconds() > 3600:  # 1 hora
+                print(f"🚫 Ignorando mensagem muito antiga: {mensagem.mensagem[:50]}...")
+                continue
+            
+            mensagens_filtradas.append(mensagem)
+        
+        print(f"✅ Mensagens APÓS filtro de exceções: {len(mensagens_filtradas)}")
+        
+        # Preparar dados das mensagens
+        mensagens_data = []
+        for mensagem in mensagens_filtradas:
+            hora_local = timezone.localtime(mensagem.criado_em)
+            mensagens_data.append({
+                'id': str(mensagem.id_interacao),
+                'remetente': mensagem.remetente,
+                'mensagem': mensagem.mensagem,
+                'hora': hora_local.strftime('%H:%M'),
+                'acao_bot': mensagem.acao_bot,
+                'timestamp': mensagem.criado_em.timestamp()
+            })
+            ultima_id_encontrada = str(mensagem.id_interacao)
+        
+        # ✅ Determinar a última mensagem visualizada (para próxima verificação)
+        if todas_mensagens.exists():
+            ultima_mensagem_global = todas_mensagens.last()
+            ultima_visualizada_id = str(ultima_mensagem_global.id_interacao)
+        else:
+            ultima_visualizada_id = ultima_mensagem_visualizada_id
+        
+        return JsonResponse({
+            'success': True,
+            'novas_mensagens': mensagens_data,
+            'total_novas': len(mensagens_data),
+            'ultima_mensagem_id': ultima_id_encontrada,
+            'ultima_visualizada_id': ultima_visualizada_id,  # ✅ NOVO: Para controle do cliente
+            'timestamp_servidor': timezone.now().timestamp()
+        })
+        
+    except Chamado.DoesNotExist:
+        print(f"❌ Chamado não encontrado: {id_chamado}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Chamado não encontrado'
+        }, status=404)
+    except Exception as e:
+        print(f"❌ Erro em verificar_novas_mensagens_inteligente: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erro interno do servidor'
+        }, status=500)

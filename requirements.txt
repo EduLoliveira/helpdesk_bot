@@ -1,0 +1,17 @@
+asarPy==1.0.1
+asgiref==3.10.0
+certifi==2025.10.5
+charset-normalizer==3.4.4
+Cython==3.1.4
+Django==4.2
+djangorestframework==3.16.1
+idna==3.11
+Markdown==3.9
+MarkupSafe==3.0.3
+meson==1.9.1
+packaging==25.0
+requests==2.32.5
+setuptools==80.9.0
+sqlparse==0.5.3
+urllib3==2.5.0
+wheel==0.46.1

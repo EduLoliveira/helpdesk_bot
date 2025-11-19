@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projeto AI - Cadastro de Usuários</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #EFFCF9;
+            color: #374151;
+            /* Tom de cinza escuro para melhor legibilidade */
+            min-height: 100vh;
+            /* Altura total da tela */
+            padding: 20px;
+            font-family: 'system-ui', Segoe UI, Tahoma, Geneva, Verdana, sans-serif;
+            /* Centraliza todo o conteúdo */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 500px;
+            /* Largura mais próxima da imagem */
+            width: 100%;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
+            padding: 40px;
+            /* Padding aplicado diretamente no container */
+        }
+
+        /* --- Estilos do Cabeçalho --- */
+        .header {
+            padding: 0;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 450px;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            flex-direction: column;
+        }
+
+        /* Wrapper do Ícone (Círculo Verde) */
+        .icon-wrapper {
+            background: #00bc7d;
+            /* Verde principal */
+            color: white;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 14px rgba(0, 188, 125, 0.3);
+        }
+
+        .icon-wrapper svg {
+            width: 30px;
+            height: 30px;
+        }
+
+        /* Títulos do Cabeçalho */
+        .header p.title {
+            color: #2c3e50;
+            font-size: 1.5rem;
+            /* 24px */
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .header p.subtitle {
+            opacity: 0.8;
+            font-size: 1rem;
+            /* 16px */
+            color: #555;
+        }
+
+        /* --- Alertas de Mensagem (Django) --- */
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert small {
+            display: block;
+            margin-top: 8px;
+            font-size: 0.85em;
+        }
+
+        /* --- Seção do Formulário --- */
+        .form-section {
+            width: 100%;
+        }
+
+        .form-section h2 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+            font-size: 1.5em;
+            font-weight: 600;
+            text-align: left;
+            /* Alinhado à esquerda como na imagem */
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 0.9rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            border: 1px solid #E5E7EB;
+            /* Borda cinza clara */
+            background: #F3F4F6;
+            /* Fundo cinza claro */
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s, background-color 0.3s;
+            color: #374151;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #00bc7d;
+            background-color: white;
+            /* Fundo branco ao focar */
+        }
+
+        .form-group input::placeholder {
+            color: #9CA3AF;
+            /* Cinza mais claro para placeholder */
+            font-style: normal;
+        }
+
+        /* Caixa Verde de "Tipo de Usuário" */
+        .regra-tipo {
+            background: #ECFDF5;
+            /* Verde bem claro */
+            color: #065F46;
+            /* Verde escuro */
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            margin-bottom: 20px;
+            /* Espaço antes do botão */
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid #D1FAE5;
+        }
+
+        .regra-tipo svg {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            /* Impede que o ícone encolha */
+        }
+
+        /* Botão de Cadastro */
+        .btn {
+            background: linear-gradient(135deg, #00bc7d, #00bba7);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            /* Alinha o ícone e o texto */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 188, 125, 0.2);
+        }
+
+        /* Caixa Cinza "Regra Automática" */
+        .info-box {
+            background: #F9FAFB;
+            /* Cinza bem claro */
+            color: #374151;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 30px;
+            /* Espaço depois do formulário */
+            border: 1px solid #E5E7EB;
+            font-size: 0.9em;
+        }
+
+        .info-box .info-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .info-box .info-header svg {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            color: #6B7280;
+            /* Cor do ícone */
+        }
+
+        .info-box ul {
+            list-style: none;
+            padding-left: 30px;
+            /* Alinha com o texto do header */
+        }
+
+        .info-box li {
+            margin-bottom: 5px;
+        }
+
+        .info-box code {
+            background: #E5E7EB;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-weight: 600;
+        }
+
+        /* Links da API */
+        .api-links {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .api-links a {
+            color: #00bc7d;
+            text-decoration: none;
+            margin: 0 10px;
+            font-weight: 500;
+            display: inline-block;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }
+
+        .api-links a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsividade */
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+                justify-content: flex-start;
+                /* Alinha no topo em telas pequenas */
+            }
+
+            .container {
+                padding: 20px;
+            }
+
+            .header p.title {
+                font-size: 1.3em;
+            }
+
+            .header p.subtitle {
+                font-size: 0.9em;
+            }
+
+            .form-section h2 {
+                font-size: 1.3em;
+            }
+
+            .btn {
+                padding: 14px 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="icon-wrapper">
+                <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" fill="currentColor" class="bi bi-people"
+                    viewBox="0 0 16 16">
+                    <path
+                        d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1zm-7.978-1L7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002-.014.002zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4m3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0M6.936 9.28a6 6 0 0 0-1.23-.247A7 7 0 0 0 5 9c-4 0-5 3-5 4q0 1 1 1h4.216A2.24 2.24 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816M4.92 10A5.5 5.5 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275ZM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0m3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4" />
+                </svg>
+            </div>
+            <p class="title">Sistema de Chamados de TI</p>
+            <p class="subtitle">Entre com suas credenciais para acessar</p>
+        </div>
+    </div>
+
+    <div class="container">
+
+        {% if success %}
+        <div class="alert alert-success">
+            ✅ {{ success }}
+            {% if usuario %}
+            <small>
+                ID: {{ usuario.id_usuario }} |
+                Código: {{ usuario.codigo_suporte }} |
+                Tipo: <strong>{{ usuario.get_tipo_usuario_display }}</strong>
+                {% if tipo_automatico %}
+                <br>🔍 Tipo definido automaticamente pelo código - Anote seu ID e username
+                {% endif %}
+            </small>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="alert alert-error">
+            {{ error|linebreaks }}
+        </div>
+        {% endif %}
+
+        <div class="form-section">
+            <h2>Cadastrar Novo Usuário</h2>
+            <form method="POST">
+                {% csrf_token %}
+
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" name="username" placeholder="Digite o username único"
+                        maxlength="20" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="codigo_suporte">Código de Suporte:</label>
+                    <input type="number" id="codigo_suporte" name="codigo_suporte"
+                        placeholder="Adicione o codigo: 333210..." min="100000" max="999999" required>
+                </div>
+
+                <div class="regra-tipo">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    <span>O tipo de usuário será definido automaticamente pelo código</span>
+                </div>
+
+                <button type="submit" class="btn">
+                    🚀 Cadastrar Usuário
+                </button>
+            </form>
+        </div>
+
+        <div class="info-box">
+            <div class="info-header">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-1.125 0-2.25.9-2.25 2.25v11.25c0 1.24 1.009 2.25 2.25 2.25h10.5c1.24 0 2.25-1.01 2.25-2.25V10.5M8.25 8.25h3.75M8.25 11.25h3.75m0 0h3.75m-3.75 0h-3.75" />
+                </svg>
+                <span>Regra Automática:</span>
+            </div>
+            <ul>
+                <li>
+                    Digite esse código para ser um → <strong style="color: #10B981;">Colaborador</strong>
+                </li>
+                <li>
+                    <code style="color: #10B981;">333210</code>
+                </li>
+            </ul>
+        </div>
+
+    </div>
+    <div class="api-links">
+
+        {% if user.is_staff %}
+        <a href="/api/usuarios/?format=json" target="_blank">📊 API Usuários (JSON)</a>
+        <br>
+        {% endif %}
+        <br>
+        <a href="/admin/" target="_blank">⚙️ Admin Django</a>
+    </div>
+</body>
+
+</html>

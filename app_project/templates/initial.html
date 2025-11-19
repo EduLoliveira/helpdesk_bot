@@ -1,0 +1,837 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suporte TI - Novo Chamado</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <style>
+        .bi-ticket {
+            width: 30px;
+            height: 30px;
+            background-color: #10b981;
+            border-radius: 50%;
+            padding: 2%;
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
+            color: white;
+        }
+
+        body {
+            background-color: #f8f9fa;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .navbar-brand img {
+            height: 30px;
+            filter: invert(39%) sepia(94%) saturate(1061%) hue-rotate(124deg) brightness(90%) contrast(92%);
+        }
+
+        .nav-link {
+            font-weight: 500;
+            color: #4b5563;
+        }
+
+        .nav-link.active-chamados {
+            background-color: #10b981;
+            border-color: #10b981;
+            color: white !important;
+            border-radius: 8px;
+            padding: 0.5rem 1rem !important;
+        }
+
+        .nav-link.active-dashboard {
+            background-color: #10b981;
+            border-color: #10b981;
+            color: white !important;
+            border-radius: 8px;
+            padding: 0.5rem 1rem !important;
+        }
+
+        .nav-link.active-chamados:hover,
+        .nav-link.active-dashboard:hover {
+            color: white;
+        }
+
+        .form-container {
+            background: #ffffff;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            margin: 20px auto;
+            max-width: 768px;
+            width: 100%;
+        }
+
+        .form-section {
+            padding: 2.5rem;
+        }
+
+        @media (max-width: 576px) {
+            .form-section {
+                padding: 1.5rem;
+            }
+        }
+
+        .form-control,
+        .form-select {
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px 16px;
+            transition: all 0.2s ease-in-out;
+            font-size: 0.95rem;
+        }
+
+        .form-control::placeholder,
+        .form-select {
+            color: #9ca3af;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #10b981;
+            background-color: #ffffff;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+
+        .location-option {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            background-color: #ffffff;
+            color: #4b5563;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            width: 100%;
+        }
+
+        .location-option i {
+            font-size: 1.25rem;
+            margin-right: 0.75rem;
+            color: #6b7280;
+        }
+
+        .location-option:hover {
+            border-color: #d1d5db;
+        }
+
+        .btn-check:checked+.location-option {
+            background-color: #f0fdf4;
+            border-color: #10b981;
+            color: #059669;
+            box-shadow: 0 2px 4px rgba(16, 185, 129, 0.1);
+        }
+
+        .btn-check:checked+.location-option i {
+            color: #059669;
+        }
+
+        .btn-submit-chamado {
+            background-color: #059669;
+            border-color: #059669;
+            color: white;
+            padding: 14px 30px;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-submit-chamado:hover {
+            background-color: #047857;
+            border-color: #047857;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(5, 150, 105, 0.2);
+        }
+
+        .success-feedback {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        /* === ESTILOS DO CHAT CORRIGIDOS - PADRÃO UNIFICADO === */
+        .chat-indicator-container {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 1055;
+            width: 60px;
+            height: 60px;
+        }
+
+        .chat-floating-btn {
+            position: relative !important;
+            width: 100% !important;
+            height: 100% !important;
+            background-color: #10b981 !important;
+            border-radius: 50% !important;
+            border: none !important;
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3) !important;
+            z-index: 1055 !important;
+            transition: all 0.3s ease !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            color: white !important;
+            font-size: 24px !important;
+        }
+
+        .chat-floating-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 30px rgba(16, 185, 129, 0.4);
+            background-color: #059669 !important;
+        }
+
+        /* Indicador de novas mensagens - POSICIONAMENTO CORRETO */
+        #novasMensagensIndicador {
+            position: absolute !important;
+            top: -2px !important;
+            right: -2px !important;
+            width: 20px !important;
+            height: 20px !important;
+            border: 3px solid white !important;
+            background-color: #dc3545 !important;
+            border-radius: 50% !important;
+            animation: pulse 2s infinite !important;
+            z-index: 1056 !important;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+            }
+            70% {
+                transform: scale(1.1);
+                box-shadow: 0 0 0 12px rgba(220, 53, 69, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+            }
+        }
+
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+
+        /* Modal do Chat - CORREÇÕES CRÍTICAS */
+        .chat-modal .modal-dialog {
+            max-width: 400px;
+            margin: 1rem auto;
+        }
+
+        .chat-modal .modal-content {
+            border-radius: 16px;
+            border: none;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-modal .modal-header {
+            background-color: #059669;
+            color: white;
+            border-radius: 16px 16px 0 0;
+            border: none;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 1.25rem;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .chat-header-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .chat-header-icon {
+            font-size: 20px;
+            padding: 8px;
+            background-color: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chat-header-title h5 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin: 0;
+            line-height: 1.2;
+        }
+
+        .chat-header-title p {
+            font-size: 0.75rem;
+            margin: 0;
+            opacity: 0.9;
+            line-height: 1.2;
+        }
+
+        .chat-status {
+            font-size: 0.7rem;
+            font-weight: 600;
+            background-color: #ffffff;
+            color: #059669;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-left: 10px;
+            white-space: nowrap;
+        }
+
+        .chat-modal .modal-body {
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 300px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .chat-messages:empty + .chat-initial-state {
+            display: flex;
+        }
+
+        .chat-initial-state {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            color: #6b7280;
+            background: #ffffff;
+            z-index: 1;
+        }
+
+        .chat-initial-state .initial-icon {
+            font-size: 3rem;
+            color: #d1d5db;
+            margin-bottom: 1rem;
+        }
+
+        .chat-initial-state h5 {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .chat-initial-state p {
+            font-size: 0.9rem;
+            color: #6b7280;
+            margin: 0;
+        }
+
+        /* Mensagens do chat */
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 85%;
+        }
+
+        .message-usuario {
+            align-items: flex-end;
+            align-self: flex-end;
+        }
+
+        .message-bot {
+            align-items: flex-start;
+            align-self: flex-start;
+        }
+
+        .message .message-sender {
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: #4b5563;
+        }
+
+        .message .message-content {
+            padding: 0.75rem 1rem;
+            border-radius: 18px;
+            word-wrap: break-word;
+        }
+
+        .message-usuario .message-content {
+            background-color: #0d6efd;
+            color: white;
+            border-bottom-right-radius: 6px;
+        }
+
+        .message-bot .message-content {
+            background-color: #f1f3f5;
+            color: #1f2937;
+            border-bottom-left-radius: 6px;
+        }
+
+        .message .message-time {
+            font-size: 0.7rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+            padding: 0 0.5rem;
+        }
+
+        .chat-input-section {
+            padding: 1rem;
+            border-top: 1px solid #e5e7eb;
+            background: #f8f9fa;
+            border-radius: 0 0 16px 16px;
+            flex-shrink: 0;
+        }
+
+        .chat-input-section .input-group {
+            position: relative;
+            align-items: center;
+        }
+
+        .chat-input-section .form-control {
+            border-radius: 25px;
+            padding: 0.75rem 1rem;
+            padding-right: 50px;
+            border: 1px solid #d1d5db;
+            font-size: 0.9rem;
+        }
+
+        .chat-input-section .form-control:focus {
+            border-color: #059669;
+            box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.1);
+        }
+
+        .send-btn {
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #059669;
+            color: white;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        .send-btn:hover {
+            background-color: #047857;
+            transform: translateY(-50%) scale(1.05);
+        }
+
+        .send-btn:active {
+            transform: translateY(-50%) scale(0.95);
+        }
+
+        .chat-disabled {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        /* Scrollbar personalizada para as mensagens */
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* Responsividade para mobile */
+        @media (max-width: 576px) {
+            .chat-modal .modal-dialog {
+                max-width: none;
+                margin: 0.5rem;
+                height: calc(100vh - 1rem);
+            }
+            
+            .chat-modal .modal-content {
+                height: 100%;
+                max-height: none;
+            }
+            
+            .chat-modal .modal-body {
+                max-height: none;
+            }
+            
+            .chat-indicator-container {
+                bottom: 20px;
+                right: 20px;
+                width: 55px;
+                height: 55px;
+            }
+            
+            .chat-floating-btn {
+                font-size: 22px !important;
+            }
+        }
+
+        /* ESTILOS DE RESPONSIVIDADE ADICIONADOS */
+        .navbar-nav {
+            flex-wrap: nowrap;
+        }
+
+        .nav-item {
+            white-space: nowrap;
+        }
+
+        /* Para dispositivos móveis */
+        @media (max-width: 991.98px) {
+            .navbar-collapse {
+                margin-top: 1rem;
+            }
+
+            .navbar-nav {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: flex-start;
+                gap: 0.5rem;
+            }
+
+            .nav-item {
+                flex: 0 0 auto;
+            }
+
+            .nav-link {
+                padding: 0.5rem 0.75rem !important;
+                font-size: 0.9rem;
+            }
+
+            .nav-link.active-chamados {
+                order: -1;
+                margin-right: auto;
+            }
+        }
+
+        /* Para telas muito pequenas (mobile pequeno) */
+        @media (max-width: 576px) {
+            .navbar-nav {
+                gap: 0.25rem;
+            }
+
+            .nav-link {
+                padding: 0.4rem 0.6rem !important;
+                font-size: 0.85rem;
+            }
+
+            .nav-link i {
+                margin-right: 0.25rem !important;
+            }
+        }
+
+        /* Para desktop - garante que fiquem na mesma linha */
+        @media (min-width: 992px) {
+            .navbar-nav {
+                flex-wrap: nowrap !important;
+            }
+
+            .nav-item {
+                flex: 0 0 auto !important;
+            }
+        }
+
+        /* ESTILOS PARA O MENU HAMBURGUER ANIMADO */
+        .navbar-toggler {
+            border: none;
+            padding: 4px 8px;
+            background: transparent;
+            position: relative;
+            width: 30px;
+            height: 24px;
+        }
+
+        .navbar-toggler:focus {
+            box-shadow: none;
+            outline: none;
+        }
+
+        .navbar-toggler .hamburger-line {
+            display: block;
+            width: 100%;
+            height: 2px;
+            background-color: #4b5563;
+            margin: 5px 0;
+            transition: all 0.3s ease-in-out;
+            transform-origin: center;
+        }
+
+        /* Animação para transformar em X */
+        .navbar-toggler[aria-expanded="true"] .hamburger-line:nth-child(1) {
+            transform: rotate(45deg) translate(4px, 4px);
+        }
+
+        .navbar-toggler[aria-expanded="true"] .hamburger-line:nth-child(2) {
+            opacity: 0;
+        }
+
+        .navbar-toggler[aria-expanded="true"] .hamburger-line:nth-child(3) {
+            transform: rotate(-45deg) translate(6px, -6px);
+        }
+
+        /* Transição suave para o menu collapse */
+        .navbar-collapse {
+            transition: all 0.3s ease-in-out;
+        }
+
+        /* Animação de entrada dos itens do menu */
+        @media (max-width: 991.98px) {
+            .navbar-collapse.collapsing {
+                transition: height 0.3s ease;
+            }
+
+            .navbar-nav {
+                transition: all 0.3s ease-in-out;
+            }
+
+            .navbar-collapse:not(.show) .navbar-nav {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            .navbar-collapse.show .navbar-nav {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top">
+        <div class="container">
+            <div class="d-flex align-items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-ticket"
+                    viewBox="0 0 16 16">
+                    <path
+                        d="M0 4.5A1.5 1.5 0 0 1 1.5 3h13A1.5 1.5 0 0 1 16 4.5V6a.5.5 0 0 1-.5.5 1.5 1.5 0 0 0 0 3 .5.5 0 0 1 .5.5v1.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 11.5V10a.5.5 0 0 1 .5-.5 1.5 1.5 0 1 0 0-3A.5.5 0 0 1 0 6zM1.5 4a.5.5 0 0 0-.5.5v1.05a2.5 2.5 0 0 1 0 4.9v1.05a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-1.05a2.5 2.5 0 0 1 0-4.9V4.5a.5.5 0 0 0-.5-.5z" />
+                </svg>
+                <div class="d-flex flex-column lh-1 ms-2">
+                    <span class="fw-bold fs-6" style="color: #1f2937;">Suporte TI</span>
+                    <small class="text-muted" style="font-size: 0.75rem;">Sistema de Chamados</small>
+                </div>
+            </div>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center flex-nowrap">
+
+                    <li class="nav-item">
+                        <a class="nav-link me-2" href="{% url 'dashboard' %}">
+                            <i class="bi bi-grid-1x2-fill me-1"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active-chamados" href="{% url 'sistema_chamados' %}">
+                            <i class="bi bi-ticket-detailed-fill me-1"></i> Novo Chamado
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link me-2" href="{% url 'logout_usuario' %}">
+                            <i class="bi bi-box-arrow-right me-1"></i> Sair
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4 py-md-5">
+        <div class="form-container">
+            <div class="form-section">
+
+                <h2 class="text-center fw-bold mb-2" style="color: #111827;">Novo Chamado</h2>
+                <p class="text-center text-muted mb-4" style="font-size: 1.05rem;">Relate seu problema e receba suporte
+                    da equipe de TI</p>
+
+                <div id="successFeedback" class="success-feedback" style="display: none;"></div>
+                <div id="errorFeedback" class="alert alert-danger" style="display: none;"></div>
+
+                <form id="chamadoForm" method="POST" action="{% url 'sistema_chamados' %}"
+                    data-url="{% url 'sistema_chamados' %}">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="titulo" class="form-label">Título do Problema</label>
+                        <input type="text" class="form-control" id="titulo" name="titulo"
+                            placeholder="Descreva brevemente o problema..." required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="descricao" class="form-label">Descrição Detalhada</label>
+                        <textarea class="form-control" id="descricao" name="descricao" rows="4"
+                            placeholder="Descreva o que aconteceu, quando começou, o que você já tentou fazer..."
+                            required></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="nome" class="form-label">Seu Nome</label>
+                            <input type="text" class="form-control" id="nome" name="nome" value="{{ usuario.username }}"
+                                readonly>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="departamento" class="form-label">Departamento</label>
+                            <select class="form-select" id="departamento" name="departamento" required>
+                                <option value="">Selecione</option>
+                                {% for departamento in departamentos %}
+                                <option value="{{ departamento.id_departamento }}">{{ departamento.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label d-block">Onde você está?</label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <input type="radio" class="btn-check" name="localizacao" id="presencial"
+                                    value="presencial" checked required>
+                                <label class="btn location-option" for="presencial" style="flex-wrap: wrap;">
+                                    <i class="bi bi-building"></i> Presencial
+                                </label>
+                            </div>
+                            <div class="col-6">
+                                <input type="radio" class="btn-check" name="localizacao" id="homeoffice"
+                                    value="homeoffice" required>
+                                <label class="btn location-option" for="homeoffice">
+                                    <i class="bi bi-house-door"></i> Home Office
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-submit-chamado w-100" id="submitBtn">
+                        <i class="bi bi-send-fill me-2"></i> Enviar Chamado
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Container para o botão flutuante e indicador - SOLUÇÃO DEFINITIVA -->
+    <div class="chat-indicator-container">
+        <button class="chat-floating-btn" id="chatFloatingBtn">
+            <i class="bi bi-chat-dots-fill"></i>
+        </button>
+    </div>
+
+    <!-- Modal do Chat CORRIGIDO -->
+    <div class="modal fade chat-modal" id="chatModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="chat-header-content">
+                        <i class="bi bi-robot chat-header-icon"></i>
+                        <div class="chat-header-title">
+                            <h5 class="mb-0">Bot Hyper</h5>
+                            <p class="mb-0">Assistente de Suporte TI</p>
+                        </div>
+                    </div>
+                    <span class="chat-status" id="chatStatus">Online</span>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body p-0 d-flex flex-column">
+                    <div class="chat-messages flex-grow-1" id="chatMessages"></div>
+                    
+                    <div class="chat-initial-state">
+                        <i class="bi bi-robot initial-icon"></i>
+                        <h5>Olá! Sou o Bot Hyper</h5>
+                        <p>Envie um chamado pelo formulário e eu te ajudarei com o acompanhamento!</p>
+                    </div>
+
+                    <div class="chat-input-section border-top">
+                        <div class="input-group">
+                            <input type="text" class="form-control border-end-0" id="messageInput" 
+                                   placeholder="Digite sua mensagem..." aria-label="Mensagem">
+                            <button class="btn send-btn" id="sendBtn" type="button" style="position:absolute;" aria-label="Enviar mensagem">
+                                <i class="bi bi-send-fill"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script src="{% static 'js/chat-bot.js' %}"></script>
+    
+</body>
+
+</html>

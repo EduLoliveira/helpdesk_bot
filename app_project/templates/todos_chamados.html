@@ -1,0 +1,800 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Sistema de Chamados</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- Adicionando Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* Estilos Base do initial.html */
+        .bi-ticket {
+            width: 30px;
+            height: 30px;
+            background-color: #10b981;
+            border-radius: 50%;
+            padding: 2%;
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
+            color: white;
+        }
+
+        body {
+            background-color: #f8f9fa;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .navbar-brand img {
+            height: 30px;
+            filter: invert(39%) sepia(94%) saturate(1061%) hue-rotate(124deg) brightness(90%) contrast(92%);
+        }
+
+        .nav-link {
+            font-weight: 500;
+            color: #4b5563;
+        }
+
+        /* Classes de link ativo unificadas */
+        .nav-link.active-chamados,
+        .nav-link.active-dashboard {
+            background-color: #10b981;
+            border-color: #10b981;
+            color: white !important;
+            border-radius: 8px;
+            padding: 0.5rem 1rem !important;
+        }
+
+        .nav-link.active-chamados:hover,
+        .nav-link.active-dashboard:hover {
+            color: white;
+        }
+
+        /* === ESTILOS DO CHAT (PADRÃO UNIFICADO) === */
+        .chat-indicator-container {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 1050;
+            width: 60px;
+            height: 60px;
+        }
+
+        .chat-floating-btn {
+            position: relative !important;
+            width: 100% !important;
+            height: 100% !important;
+            background-color: #10b981 !important;
+            border-radius: 50% !important;
+            border: none !important;
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3) !important;
+            z-index: 1050 !important;
+            transition: all 0.3s ease !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            color: white !important;
+            font-size: 28px !important;
+        }
+
+        .chat-floating-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 30px rgba(16, 185, 129, 0.4);
+        }
+
+        /* === ESTILOS PARA O INDICADOR DE NOVAS MENSAGENS (PADRÃO UNIFICADO) === */
+        #novasMensagensIndicador {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 20px !important;
+            height: 20px !important;
+            border: 3px solid white !important;
+            background-color: #dc3545 !important;
+            border-radius: 50%;
+            z-index: 1051;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+            }
+            70% {
+                transform: scale(1.1);
+                box-shadow: 0 0 0 12px rgba(220, 53, 69, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+            }
+        }
+
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+
+        .chat-modal .modal-dialog {
+            max-width: 420px;
+            margin: 1.75rem auto;
+        }
+        .chat-modal .modal-content {
+            border-radius: 16px;
+            border: none;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            height: calc(100vh - 3.5rem);
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-modal .modal-header {
+            background-color: #059669;
+            color: white;
+            border-radius: 14px 14px 0 0;
+            border: none;
+            padding: 1rem 1.5rem;
+            align-items: center;
+        }
+        .chat-header-content { display: flex; align-items: center; gap: 12px; }
+        .chat-header-icon { font-size: 24px; padding: 10px; background-color: rgba(255, 255, 255, 0.1); border-radius: 50%; }
+        .chat-header-title h5 { font-size: 1.1rem; font-weight: 700; margin: 0; }
+        .chat-header-title p { font-size: 0.85rem; margin: 0; opacity: 0.8; }
+        .chat-status { font-size: 0.8rem; font-weight: 600; background-color: #ffffff; color: #059669; padding: 2px 8px; border-radius: 12px; margin-left: auto; }
+        .chat-modal .modal-body {
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 1.25rem;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-messages:empty+.chat-initial-state { display: flex; }
+        .chat-initial-state {
+            flex-grow: 1;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            color: #6b7280;
+        }
+        .chat-initial-state .initial-icon { font-size: 4rem; color: #d1d5db; }
+        .chat-initial-state h5 { font-weight: 700; color: #374151; margin-top: 1rem; }
+        .message { margin-bottom: 1.25rem; }
+        .chat-input-section {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid #e5e7eb;
+            background: #f8f9fa;
+            flex-shrink: 0;
+        }
+        .chat-input-section .input-group { position: relative; }
+        .chat-input-section .form-control { border-radius: 25px; padding-right: 50px; }
+        .send-btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border-radius: 50%; background-color: #059669; color: white; border: none; display: flex; align-items: center; justify-content: center; z-index: 5; }
+        .chat-disabled { opacity: 0.6; pointer-events: none; }
+
+        /* Estilos de Responsividade e Navbar (do initial.html) */
+        .navbar-nav { flex-wrap: nowrap; }
+        .nav-item { white-space: nowrap; }
+        @media (max-width: 991.98px) {
+            .navbar-collapse { margin-top: 1rem; }
+            .navbar-nav { flex-direction: row; flex-wrap: wrap; justify-content: flex-start; gap: 0.5rem; }
+            .nav-item { flex: 0 0 auto; }
+            .nav-link { padding: 0.5rem 0.75rem !important; font-size: 0.9rem; }
+            .nav-link.active-dashboard {
+                order: -1;
+                margin-right: auto;
+            }
+        }
+        @media (max-width: 576px) {
+            .navbar-nav { gap: 0.25rem; }
+            .nav-link { padding: 0.4rem 0.6rem !important; font-size: 0.85rem; }
+            .nav-link i { margin-right: 0.25rem !important; }
+        }
+        @media (min-width: 992px) {
+            .navbar-nav { flex-wrap: nowrap !important; }
+            .nav-item { flex: 0 0 auto !important; }
+        }
+
+        /* Menu Hamburguer Animado (do initial.html) */
+        .navbar-toggler { border: none; padding: 4px 8px; background: transparent; position: relative; width: 30px; height: 24px; }
+        .navbar-toggler:focus { box-shadow: none; outline: none; }
+        .navbar-toggler .hamburger-line { display: block; width: 100%; height: 2px; background-color: #4b5563; margin: 5px 0; transition: all 0.3s ease-in-out; transform-origin: center; }
+        .navbar-toggler[aria-expanded="true"] .hamburger-line:nth-child(1) { transform: rotate(45deg) translate(4px, 4px); }
+        .navbar-toggler[aria-expanded="true"] .hamburger-line:nth-child(2) { opacity: 0; }
+        .navbar-toggler[aria-expanded="true"] .hamburger-line:nth-child(3) { transform: rotate(-45deg) translate(6px, -6px); }
+        .navbar-collapse { transition: all 0.3s ease-in-out; }
+        @media (max-width: 991.98px) {
+            .navbar-collapse.collapsing { transition: height 0.3s ease; }
+            .navbar-nav { transition: all 0.3s ease-in-out; }
+            .navbar-collapse:not(.show) .navbar-nav { opacity: 0; transform: translateY(-10px); }
+            .navbar-collapse.show .navbar-nav { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- Estilos Específicos do Dashboard --- */
+        .nav-pills .nav-link { background-color: #e9ecef; color: #6c757d; border-radius: 8px; margin: 0 5px; font-weight: 500; padding: 0.5rem 1.5rem; }
+        .nav-pills .nav-link.active { background-color: #ffffff; color: #343a40; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .card { border-radius: 12px; border: none; }
+        .icon-circle { width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+        .bg-light-success { background-color: #e7f8f3; }
+        .text-success { color: #10b981 !important; }
+        .bg-light-warning { background-color: #fffbeb; }
+        .text-warning { color: #f59e0b !important; }
+        .bg-light-danger { background-color: #feedec; }
+        .text-danger { color: #ef4444 !important; }
+        .badge.rounded-pill { font-size: 0.75rem; font-weight: 500; padding: 0.55em 0.95em; }
+        
+        /* Classes dinâmicas para status e prioridade */
+        .status-em_andamento, .modal-badge.status-em_andamento { background-color: #FFFBEB; color: #D97706; border: 1px solid #FDE68A; }
+        .status-resolvido, .modal-badge.status-resolvido { background-color: #F0FDF4; color: #16A34A; border: 1px solid #A7F3D0;}
+        .status-cancelado, .modal-badge.status-cancelado { background-color: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0;}
+        .prioridade-baixa, .prioridade-comum, .modal-badge.prioridade-baixa, .modal-badge.prioridade-comum { background-color: #EFF6FF; color: #3B82F6; border: 1px solid #BFDBFE; }
+        .prioridade-media, .modal-badge.prioridade-media { background-color: #F5F3FF; color: #8B5CF6; border: 1px solid #DDD6FE; }
+        .prioridade-urgente, .modal-badge.prioridade-urgente { background-color: #FEF2F2; color: #EF4444; border: 1px solid #FECACA; }
+        
+        .list-group-item { border: 0; border-bottom: 1px solid #e9ecef; }
+        .list-group-item:last-child { border-bottom: 0; }
+        
+        /* --- ESTILOS REFINADOS para o Modal de Detalhes --- */
+        .modal-details .modal-content {
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border: none;
+        }
+        .modal-details .modal-header {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+        }
+        .modal-details .modal-title-group {
+             display: flex;
+             align-items: center;
+             gap: 0.75rem;
+             margin-bottom: 0.25rem;
+        }
+        .modal-details .modal-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: #111827;
+            margin: 0;
+        }
+        .modal-details #modal-id-legivel-header {
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+        .modal-details .modal-body {
+            padding: 1.5rem;
+            padding-top: 1rem;
+        }
+        .modal-header .modal-badge {
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 0.3em 0.8em;
+            line-height: 1.5;
+            align-self: center;
+        }
+        .detail-group {
+            background-color: transparent;
+            border-radius: 0;
+            padding: 0;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 1rem;
+        }
+        .detail-group:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .detail-group-title {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #6B7280;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 1rem;
+        }
+        .detail-label {
+            font-size: 0.8rem;
+            color: #6B7280;
+            margin-bottom: 0.15rem;
+            display: block;
+        }
+        .detail-value {
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #374151;
+            display: flex;
+            align-items: center;
+        }
+        .detail-value i {
+            margin-right: 0.5rem;
+            color: #6b7280;
+            font-size: 1.1em;
+        }
+        .detail-value-full {
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #374151;
+            word-break: break-word;
+            line-height: 1.6;
+        }
+        .classification-badges .modal-badge {
+            font-size: 0.8rem;
+            font-weight: 500;
+            padding: 0.4em 1em;
+        }
+
+        /* Container do gráfico */
+        .chart-container {
+            position: relative;
+            height: 250px;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body style="background-color: #f8f9fa;">
+    
+    <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top">
+        <div class="container">
+            <div class="d-flex align-items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-ticket" viewBox="0 0 16 16">
+                    <path d="M0 4.5A1.5 1.5 0 0 1 1.5 3h13A1.5 1.5 0 0 1 16 4.5V6a.5.5 0 0 1-.5.5 1.5 1.5 0 0 0 0 3 .5.5 0 0 1 .5.5v1.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 11.5V10a.5.5 0 0 1 .5-.5 1.5 1.5 0 1 0 0-3A.5.5 0 0 1 0 6zM1.5 4a.5.5 0 0 0-.5.5v1.05a2.5 2.5 0 0 1 0 4.9v1.05a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-1.05a2.5 2.5 0 0 1 0-4.9V4.5a.5.5 0 0 0-.5-.5z"/>
+                </svg>
+                <div class="d-flex flex-column lh-1 ms-2">
+                    <span class="fw-bold fs-6" style="color: #1f2937;">Suporte TI</span>
+                    <small class="text-muted" style="font-size: 0.75rem;">Sistema de Chamados</small>
+                </div>
+            </div>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center flex-nowrap">
+                    <li class="nav-item">
+                        <a class="nav-link active-dashboard me-2" href="{% url 'dashboard' %}"><i class="bi bi-grid-1x2-fill me-1"></i> Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link me-2" href="{% url 'sistema_chamados' %}"><i class="bi bi-ticket-detailed-fill me-1"></i> Novo Chamado</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link me-2" href="{% url 'logout_usuario' %}"><i class="bi bi-box-arrow-right me-1"></i> Sair</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        <div class="text-center mb-4">
+            <h2 class="fw-bold">Dashboard</h2>
+            <p class="text-muted">Visão geral dos chamados e gerenciamento de usuários</p>
+        </div>
+        <ul class="nav nav-pills nav-fill mb-4 justify-content-center" id="dashboard-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="chamados-tab" data-bs-toggle="tab" data-bs-target="#chamados-content" type="button" role="tab" aria-controls="chamados-content" aria-selected="true">Chamados</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="usuarios-tab" data-bs-toggle="tab" data-bs-target="#usuarios-content" type="button" role="tab" aria-controls="usuarios-content" aria-selected="false">Usuários</button>
+            </li>
+        </ul>
+        <div class="tab-content" id="dashboard-tabs-content">
+            <div class="tab-pane fade show active" id="chamados-content" role="tabpanel" aria-labelledby="chamados-tab">
+                <div class="row mb-4">
+                    <div class="col-md-6 col-xl-3 mb-3 mb-xl-0">
+                        <div class="card border-0 shadow-sm h-100"><div class="card-body d-flex justify-content-between align-items-center"><div><h6 class="text-muted fw-normal">Total de Chamados</h6><h2 class="fw-bold mb-0">{{ total_chamados|default:"0" }}</h2></div><div class="icon-circle bg-light-success text-success"><i class="bi bi-bar-chart-fill"></i></div></div></div>
+                    </div>
+                    <div class="col-md-6 col-xl-3 mb-3 mb-xl-0">
+                        <div class="card border-0 shadow-sm h-100"><div class="card-body d-flex justify-content-between align-items-center"><div><h6 class="text-muted fw-normal">Pendentes</h6><h2 class="fw-bold mb-0">{{ pendentes_count|default:"0" }}</h2></div><div class="icon-circle bg-light-warning text-warning"><i class="bi bi-clock-history"></i></div></div></div>
+                    </div>
+                    <div class="col-md-6 col-xl-3 mb-3 mb-md-0">
+                        <div class="card border-0 shadow-sm h-100"><div class="card-body d-flex justify-content-between align-items-center"><div><h6 class="text-muted fw-normal">Solucionados</h6><h2 class="fw-bold mb-0">{{ solucionados_count|default:"0" }}</h2></div><div class="icon-circle bg-light-success text-success"><i class="bi bi-check-circle"></i></div></div></div>
+                    </div>
+                    <div class="col-md-6 col-xl-3">
+                        <div class="card border-0 shadow-sm h-100"><div class="card-body d-flex justify-content-between align-items-center"><div><h6 class="text-muted fw-normal">Urgentes</h6><h2 class="fw-bold mb-0">{{ urgentes_count|default:"0" }}</h2></div><div class="icon-circle bg-light-danger text-danger"><i class="bi bi-exclamation-triangle"></i></div></div></div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-xl-4 mb-4 mb-xl-0">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body">
+                                <h5 class="card-title fw-bold">Distribuição de Chamados</h5>
+                                <div class="chart-container">
+                                    <canvas id="pizzaChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-8">
+                        <div class="card border-0 shadow-sm"><div class="card-body"><h5 class="card-title fw-bold mb-3">Chamados Recentes</h5>{% if chamados_recentes %}<ul class="list-group list-group-flush">{% for chamado in chamados_recentes %}<li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3"><div><h6 class="mb-0 fw-bold">{{ chamado.nome_solicitante|default:chamado.usuario.username }} - <span class="text-muted fw-normal">{{ chamado.departamento.nome }}</span></h6><p class="mb-1 text-muted small">{{ chamado.titulo }}</p><small class="text-muted"><i class="bi bi-calendar-event me-1"></i> {{ chamado.criado_em|date:"d/m/Y \às H:i" }}</small></div><div class="text-end" style="min-width: 90px;"><span class="badge rounded-pill mb-2 status-{{ chamado.status }}">{{ chamado.get_status_display }}</span><br><span class="badge rounded-pill mb-2 prioridade-{{ chamado.urgencia }}">{{ chamado.get_urgencia_display }}</span><br><a href="#" class="text-decoration-none small text-primary fw-medium" data-bs-toggle="modal" data-bs-target="#detalhesChamadoModal" data-id-legivel="{{ chamado.id_legivel }}" data-status="{{ chamado.get_status_display }}" data-status-class="status-{{ chamado.status }}" data-solicitante="{{ chamado.nome_solicitante|default:chamado.usuario.username }}" data-departamento="{{ chamado.departamento.nome }}" data-localizacao="{{ chamado.get_modalidade_display }}" data-localizacao-icon="{% if chamado.modalidade_presencial %}bi-building{% else %}bi-house-door{% endif %}" data-data="{{ chamado.criado_em|date:"d/m/Y \às H:i" }}" data-titulo="{{ chamado.titulo }}" data-descricao="{{ chamado.descricao|linebreaksbr }}" data-prioridade="{{ chamado.get_urgencia_display }}" data-prioridade-class="prioridade-{{ chamado.urgencia }}"><i class="bi bi-eye me-1"></i>Ver mais</a></div></li>{% endfor %}</ul>{% else %}<div class="text-center py-5"><svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-hexagon text-muted" viewBox="0 0 16 16"><path d="M14 4.577v6.846L8 15l-6-3.577V4.577L8 1l6 3.577zM8.5.134a1 1 0 0 0-1 0l-6 3.577a1 1 0 0 0-.5.866v6.846a1 1 0 0 0 .5.866l6 3.577a1 1 0 0 0 1 0l6-3.577a1 1 0 0 0 .5-.866V4.577a1 1 0 0 0-.5-.866z"/></svg><h5 class="mt-3 fw-normal text-muted">Nenhum chamado encontrado</h5><p class="text-muted small">Crie um novo chamado para começar</p></div>{% endif %}</div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="usuarios-content" role="tabpanel" aria-labelledby="usuarios-tab">
+                <div class="card border-0 shadow-sm"><div class="card-body text-center p-5"><i class="bi bi-people-fill display-3 text-muted"></i><h5 class="mt-3 text-muted">Gerenciamento de Usuários</h5><p class="text-muted">Esta seção está em desenvolvimento.</p></div></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Botão Flutuante do Chat - PADRÃO UNIFICADO -->
+    <div class="chat-indicator-container">
+        <button class="chat-floating-btn" id="chatFloatingBtn">
+            <i class="bi bi-chat-dots-fill"></i>
+        </button>
+    </div>
+
+    <!-- Modal do Chat -->
+    <div class="modal fade chat-modal" id="chatModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="chat-header-content">
+                        <i class="bi bi-robot chat-header-icon"></i>
+                        <div class="chat-header-title"><h5>Bot Hyper</h5><p>Assistente de Suporte TI</p></div>
+                    </div>
+                    <span class="chat-status" id="chatStatus">Online</span>
+                    <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="chat-messages" id="chatMessages"></div>
+                    <div class="chat-initial-state">
+                        <i class="bi bi-robot initial-icon"></i>
+                        <h5>Olá! Sou o Bot Hyper</h5>
+                        <p>Como posso ajudar?</p>
+                    </div>
+                    <div class="chat-input-section">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="messageInput" placeholder="Digite sua mensagem...">
+                            <button class="send-btn" id="sendBtn"><i class="bi bi-send-fill"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Detalhes do Chamado -->
+    <div class="modal fade modal-details" id="detalhesChamadoModal" tabindex="-1" aria-labelledby="detalhesChamadoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="flex-grow-1">
+                         <div class="modal-title-group">
+                             <h5 class="modal-title" id="detalhesChamadoModalLabel">Detalhes do Chamado</h5>
+                             <span class="badge rounded-pill modal-badge" id="modal-status-badge"></span>
+                         </div>
+                         <span class="small text-muted" id="modal-id-legivel-header"></span>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="detail-group">
+                        <h6 class="detail-group-title">Solicitante</h6>
+                        <div class="row g-3">
+                            <div class="col-6"><span class="detail-label">Nome</span><span class="detail-value" id="modal-solicitante"></span></div>
+                            <div class="col-6"><span class="detail-label">Departamento</span><span class="detail-value" id="modal-departamento"></span></div>
+                            <div class="col-6"><span class="detail-label">Localização</span><span class="detail-value" id="modal-localizacao"></span></div>
+                            <div class="col-6"><span class="detail-label">Data/Hora</span><span class="detail-value" id="modal-data"></span></div>
+                        </div>
+                    </div>
+                    <div class="detail-group">
+                        <h6 class="detail-group-title">Problema Relatado</h6>
+                        <div class="mb-3"><span class="detail-label">Título</span><span class="detail-value-full" id="modal-titulo"></span></div>
+                        <div><span class="detail-label">Descrição</span><span class="detail-value-full" id="modal-descricao"></span></div>
+                    </div>
+                    <div class="detail-group">
+                        <h6 class="detail-group-title">Classificação</h6>
+                        <div class="d-flex gap-2 classification-badges">
+                            <span class="badge rounded-pill modal-badge" id="modal-prioridade-badge"></span>
+                            <span class="badge rounded-pill modal-badge" id="modal-status-badge-2"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // =============================================
+        // SISTEMA DO GRÁFICO DE PIZZA - REIMPLEMENTADO
+        // =============================================
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('📊 Inicializando gráfico de pizza...');
+            
+            // Inicializar gráfico de pizza
+            inicializarGraficoPizza();
+            
+            const detalhesModalEl = document.getElementById('detalhesChamadoModal');
+            if (detalhesModalEl) {
+                detalhesModalEl.addEventListener('show.bs.modal', function (event) {
+                    const button = event.relatedTarget; 
+                    preencherModalDetalhes(button, event.target); 
+                });
+            }
+        });
+
+        function inicializarGraficoPizza() {
+            const ctx = document.getElementById('pizzaChart');
+            
+            if (!ctx) {
+                console.error('❌ Elemento do gráfico não encontrado');
+                return;
+            }
+            
+            // Dados do Django template
+            const pendentes = {{ pendentes_count|default:"0" }};
+            const solucionados = {{ solucionados_count|default:"0" }};
+            const total = {{ total_chamados|default:"0" }};
+            
+            console.log(`📈 Dados do gráfico - Pendentes: ${pendentes}, Solucionados: ${solucionados}, Total: ${total}`);
+            
+            // Se não há dados, mostrar mensagem
+            if (total === 0) {
+                ctx.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-pie-chart display-4"></i>
+                        <p class="mt-2">Nenhum dado disponível</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const pizzaChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Pendentes', 'Resolvidos'],
+                    datasets: [{
+                        data: [pendentes, solucionados],
+                        backgroundColor: [
+                            '#fd7e14', // Laranja para Pendentes
+                            '#28a745'  // Verde para Resolvidos
+                        ],
+                        borderColor: '#ffffff',
+                        borderWidth: 3,
+                        hoverOffset: 15
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                font: {
+                                    size: 12,
+                                    family: "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '0%', // Gráfico de pizza completo (não doughnut)
+                    animation: {
+                        animateScale: true,
+                        animateRotate: true
+                    }
+                }
+            });
+            
+            console.log('✅ Gráfico de pizza inicializado com sucesso');
+        }
+
+        function preencherModalDetalhes(button, modal) {
+            // Extrai dados
+            const idLegivel = button.getAttribute('data-id-legivel');
+            const status = button.getAttribute('data-status');
+            const statusClass = button.getAttribute('data-status-class');
+            const solicitante = button.getAttribute('data-solicitante');
+            const departamento = button.getAttribute('data-departamento');
+            const localizacao = button.getAttribute('data-localizacao');
+            const localizacaoIcon = button.getAttribute('data-localizacao-icon');
+            const data = button.getAttribute('data-data');
+            const titulo = button.getAttribute('data-titulo');
+            const descricao = button.getAttribute('data-descricao');
+            const prioridade = button.getAttribute('data-prioridade');
+            const prioridadeClass = button.getAttribute('data-prioridade-class');
+
+            // Atualiza
+            modal.querySelector('#modal-id-legivel-header').textContent = "ID: " + idLegivel;
+            const statusBadgeHeader = modal.querySelector('#modal-status-badge');
+            statusBadgeHeader.textContent = status;
+            statusBadgeHeader.className = 'badge rounded-pill modal-badge ' + statusClass;
+            
+            modal.querySelector('#modal-solicitante').textContent = solicitante; 
+            modal.querySelector('#modal-departamento').textContent = departamento; 
+            modal.querySelector('#modal-localizacao').innerHTML = `<i class="bi ${localizacaoIcon}"></i> ${localizacao}`; 
+            modal.querySelector('#modal-data').textContent = data; 
+            
+            modal.querySelector('#modal-titulo').textContent = titulo;
+            modal.querySelector('#modal-descricao').innerHTML = descricao; 
+            
+            const prioridadeBadge = modal.querySelector('#modal-prioridade-badge');
+            prioridadeBadge.textContent = "Prioridade: " + prioridade; 
+            prioridadeBadge.className = 'badge rounded-pill modal-badge ' + prioridadeClass;
+
+            const statusBadge2 = modal.querySelector('#modal-status-badge-2');
+            statusBadge2.textContent = "Status: " + status; 
+            statusBadge2.className = 'badge rounded-pill modal-badge ' + statusClass;
+        }
+
+        /**
+         * SISTEMA DE ATUALIZAÇÃO AUTOMÁTICA - PÁGINA INTEIRA
+         * Atualiza a página completa a cada 5 minutos
+         */
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Iniciando sistema de atualização automática da PÁGINA INTEIRA (5 minutos)...');
+            
+            let intervaloAtualizacao = null;
+            let tempoRestante = 5 * 60; // 5 minutos em segundos
+            
+            // ✅ VERIFICAR se estamos na página de dashboard/todos_chamados
+            const isDashboardPage = window.location.pathname.includes('dashboard') || 
+                                window.location.pathname.includes('todos_chamados') ||
+                                document.querySelector('h2')?.textContent.includes('Dashboard');
+            
+            if (!isDashboardPage) {
+                console.log('❌ Não é página do dashboard, atualização desativada');
+                return;
+            }
+            
+            console.log('✅ Página do dashboard detectada, iniciando atualização...');
+
+            // Função para atualizar a página INTEIRA
+            function atualizarPaginaCompleta() {
+                console.log('🔄 ATUALIZANDO PÁGINA INTEIRA (F5)...');
+                
+                // Mostrar indicador de carregamento
+                mostrarIndicadorCarregamento();
+                
+                // Recarregar a página após um pequeno delay
+                setTimeout(() => {
+                    console.log('📍 RECARREGANDO AGORA!');
+                    location.reload(true); // true força recarregamento do cache
+                }, 1000);
+            }
+            
+            // Função para mostrar indicador de carregamento
+            function mostrarIndicadorCarregamento() {
+                let indicador = document.getElementById('indicador-atualizacao-pagina');
+                if (!indicador) {
+                    indicador = document.createElement('div');
+                    indicador.id = 'indicador-atualizacao-pagina';
+                    indicador.className = 'alert alert-info alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-2';
+                    indicador.style.zIndex = '9999';
+                    indicador.innerHTML = `
+                        <i class="bi bi-arrow-clockwise me-2"></i>
+                        <strong>Atualizando página...</strong> Buscando novos chamados e dados atualizados.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    document.body.appendChild(indicador);
+                }
+                
+                // Auto-remover após 5 segundos
+                setTimeout(() => {
+                    if (indicador.parentNode) {
+                        indicador.remove();
+                    }
+                }, 5000);
+            }
+            
+            // Função para atualizar o contador na interface
+            function atualizarContador() {
+                tempoRestante -= 1;
+                
+                const minutos = Math.floor(tempoRestante / 60);
+                const segundos = tempoRestante % 60;
+                
+                if (tempoRestante <= 0) {
+                    console.log('⏰ TEMPO ESGOTADO - ATUALIZANDO PÁGINA!');
+                    atualizarPaginaCompleta();
+                    // Reiniciar contador
+                    tempoRestante = 5 * 60;
+                    return;
+                }
+                
+                // Atualizar o contador na interface se existir
+                const contadorElement = document.getElementById('contador-atualizacao-pagina');
+                if (contadorElement) {
+                    contadorElement.textContent = `Próxima atualização automática em ${minutos}:${segundos.toString().padStart(2, '0')}`;
+                }
+            }
+            
+            // Adicionar contador à interface
+            function adicionarContadorInterface() {
+                // Verificar se já existe
+                if (document.getElementById('contador-atualizacao-pagina')) {
+                    return;
+                }
+                
+                // Encontrar um local apropriado para o contador
+                const header = document.querySelector('h2');
+                if (header) {
+                    const contadorDiv = document.createElement('div');
+                    contadorDiv.className = 'mt-2 mb-3 text-center';
+                    contadorDiv.innerHTML = `
+                        <div class="d-flex align-items-center justify-content-center text-muted small">
+                            <i class="bi bi-arrow-clockwise me-2"></i>
+                            <span id="contador-atualizacao-pagina">Próxima atualização automática em 5:00</span>
+                            <button id="btn-atualizar-agora-pagina" class="btn btn-sm btn-outline-primary ms-2">
+                                <i class="bi bi-arrow-repeat me-1"></i>Atualizar Agora
+                            </button>
+                        </div>
+                    `;
+                    header.parentNode.insertBefore(contadorDiv, header.nextSibling);
+                    
+                    // Adicionar evento ao botão de atualização manual
+                    document.getElementById('btn-atualizar-agora-pagina').addEventListener('click', function() {
+                        console.log('🔄 Atualização manual da página solicitada...');
+                        atualizarPaginaCompleta();
+                    });
+                }
+            }
+            
+            // Iniciar sistema de atualização da PÁGINA INTEIRA
+            function iniciarAtualizacaoPagina() {
+                // Adicionar contador à interface
+                adicionarContadorInterface();
+                
+                // Iniciar intervalo de atualização
+                intervaloAtualizacao = setInterval(atualizarContador, 1000);
+                
+                console.log('✅ Sistema de atualização da PÁGINA INTEIRA iniciado (5 minutos)');
+                
+                // Fazer uma verificação inicial
+                atualizarContador();
+            }
+            
+            // ✅ INICIAR o sistema de atualização da PÁGINA
+            iniciarAtualizacaoPagina();
+            
+            // Limpar intervalo quando a página for fechada
+            window.addEventListener('beforeunload', function() {
+                if (intervaloAtualizacao) {
+                    clearInterval(intervaloAtualizacao);
+                    console.log('🧹 Intervalo de atualização da página limpo');
+                }
+            });
+        });
+    </script>
+
+    <!-- Script do Chat Bot -->
+    <script src="{% static 'js/chat-bot.js' %}"></script>
+
+</body>
+</html>
