@@ -8,348 +8,9 @@
     <title>Dashboard - Sistema de Chamados</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <!-- Adicionando Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>]
+    <link rel="stylesheet" href="{% static 'css/chamados.css' %}">
 
-    <style>
-        /* Estilos Base do initial.html */
-        .bi-ticket {
-            width: 30px;
-            height: 30px;
-            background-color: #10b981;
-            border-radius: 50%;
-            padding: 2%;
-            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
-            color: white;
-        }
-
-        body {
-            background-color: #f8f9fa;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            min-height: 100vh;
-        }
-
-        .navbar {
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .navbar-brand img {
-            height: 30px;
-            filter: invert(39%) sepia(94%) saturate(1061%) hue-rotate(124deg) brightness(90%) contrast(92%);
-        }
-
-        .nav-link {
-            font-weight: 500;
-            color: #4b5563;
-        }
-
-        /* Classes de link ativo unificadas */
-        .nav-link.active-chamados,
-        .nav-link.active-dashboard {
-            background-color: #10b981;
-            border-color: #10b981;
-            color: white !important;
-            border-radius: 8px;
-            padding: 0.5rem 1rem !important;
-        }
-
-        .nav-link.active-chamados:hover,
-        .nav-link.active-dashboard:hover {
-            color: white;
-        }
-
-        /* === ESTILOS DO CHAT (PADRÃO UNIFICADO) === */
-        .chat-indicator-container {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            z-index: 1050;
-            width: 60px;
-            height: 60px;
-        }
-
-        .chat-floating-btn {
-            position: relative !important;
-            width: 100% !important;
-            height: 100% !important;
-            background-color: #10b981 !important;
-            border-radius: 50% !important;
-            border: none !important;
-            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3) !important;
-            z-index: 1050 !important;
-            transition: all 0.3s ease !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            color: white !important;
-            font-size: 28px !important;
-        }
-
-        .chat-floating-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 12px 30px rgba(16, 185, 129, 0.4);
-        }
-
-        /* === ESTILOS PARA O INDICADOR DE NOVAS MENSAGENS (PADRÃO UNIFICADO) === */
-        #novasMensagensIndicador {
-            position: absolute;
-            top: -2px;
-            right: -2px;
-            width: 20px !important;
-            height: 20px !important;
-            border: 3px solid white !important;
-            background-color: #dc3545 !important;
-            border-radius: 50%;
-            z-index: 1051;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% {
-                transform: scale(0.95);
-                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
-            }
-            70% {
-                transform: scale(1.1);
-                box-shadow: 0 0 0 12px rgba(220, 53, 69, 0);
-            }
-            100% {
-                transform: scale(0.95);
-                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
-            }
-        }
-
-        .pulse-animation {
-            animation: pulse 2s infinite;
-        }
-
-        .chat-modal .modal-dialog {
-            max-width: 420px;
-            margin: 1.75rem auto;
-        }
-        .chat-modal .modal-content {
-            border-radius: 16px;
-            border: none;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            height: calc(100vh - 3.5rem);
-            display: flex;
-            flex-direction: column;
-        }
-        .chat-modal .modal-header {
-            background-color: #059669;
-            color: white;
-            border-radius: 14px 14px 0 0;
-            border: none;
-            padding: 1rem 1.5rem;
-            align-items: center;
-        }
-        .chat-header-content { display: flex; align-items: center; gap: 12px; }
-        .chat-header-icon { font-size: 24px; padding: 10px; background-color: rgba(255, 255, 255, 0.1); border-radius: 50%; }
-        .chat-header-title h5 { font-size: 1.1rem; font-weight: 700; margin: 0; }
-        .chat-header-title p { font-size: 0.85rem; margin: 0; opacity: 0.8; }
-        .chat-status { font-size: 0.8rem; font-weight: 600; background-color: #ffffff; color: #059669; padding: 2px 8px; border-radius: 12px; margin-left: auto; }
-        .chat-modal .modal-body {
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            flex-grow: 1;
-            overflow: hidden;
-        }
-        .chat-messages {
-            flex-grow: 1;
-            overflow-y: auto;
-            padding: 1.25rem;
-            background: #ffffff;
-            display: flex;
-            flex-direction: column;
-        }
-        .chat-messages:empty+.chat-initial-state { display: flex; }
-        .chat-initial-state {
-            flex-grow: 1;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 2rem;
-            color: #6b7280;
-        }
-        .chat-initial-state .initial-icon { font-size: 4rem; color: #d1d5db; }
-        .chat-initial-state h5 { font-weight: 700; color: #374151; margin-top: 1rem; }
-        .message { margin-bottom: 1.25rem; }
-        .chat-input-section {
-            padding: 1rem 1.5rem;
-            border-top: 1px solid #e5e7eb;
-            background: #f8f9fa;
-            flex-shrink: 0;
-        }
-        .chat-input-section .input-group { position: relative; }
-        .chat-input-section .form-control { border-radius: 25px; padding-right: 50px; }
-        .send-btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border-radius: 50%; background-color: #059669; color: white; border: none; display: flex; align-items: center; justify-content: center; z-index: 5; }
-        .chat-disabled { opacity: 0.6; pointer-events: none; }
-
-        /* Estilos de Responsividade e Navbar (do initial.html) */
-        .navbar-nav { flex-wrap: nowrap; }
-        .nav-item { white-space: nowrap; }
-        @media (max-width: 991.98px) {
-            .navbar-collapse { margin-top: 1rem; }
-            .navbar-nav { flex-direction: row; flex-wrap: wrap; justify-content: flex-start; gap: 0.5rem; }
-            .nav-item { flex: 0 0 auto; }
-            .nav-link { padding: 0.5rem 0.75rem !important; font-size: 0.9rem; }
-            .nav-link.active-dashboard {
-                order: -1;
-                margin-right: auto;
-            }
-        }
-        @media (max-width: 576px) {
-            .navbar-nav { gap: 0.25rem; }
-            .nav-link { padding: 0.4rem 0.6rem !important; font-size: 0.85rem; }
-            .nav-link i { margin-right: 0.25rem !important; }
-        }
-        @media (min-width: 992px) {
-            .navbar-nav { flex-wrap: nowrap !important; }
-            .nav-item { flex: 0 0 auto !important; }
-        }
-
-        /* Menu Hamburguer Animado (do initial.html) */
-        .navbar-toggler { border: none; padding: 4px 8px; background: transparent; position: relative; width: 30px; height: 24px; }
-        .navbar-toggler:focus { box-shadow: none; outline: none; }
-        .navbar-toggler .hamburger-line { display: block; width: 100%; height: 2px; background-color: #4b5563; margin: 5px 0; transition: all 0.3s ease-in-out; transform-origin: center; }
-        .navbar-toggler[aria-expanded="true"] .hamburger-line:nth-child(1) { transform: rotate(45deg) translate(4px, 4px); }
-        .navbar-toggler[aria-expanded="true"] .hamburger-line:nth-child(2) { opacity: 0; }
-        .navbar-toggler[aria-expanded="true"] .hamburger-line:nth-child(3) { transform: rotate(-45deg) translate(6px, -6px); }
-        .navbar-collapse { transition: all 0.3s ease-in-out; }
-        @media (max-width: 991.98px) {
-            .navbar-collapse.collapsing { transition: height 0.3s ease; }
-            .navbar-nav { transition: all 0.3s ease-in-out; }
-            .navbar-collapse:not(.show) .navbar-nav { opacity: 0; transform: translateY(-10px); }
-            .navbar-collapse.show .navbar-nav { opacity: 1; transform: translateY(0); }
-        }
-
-        /* --- Estilos Específicos do Dashboard --- */
-        .nav-pills .nav-link { background-color: #e9ecef; color: #6c757d; border-radius: 8px; margin: 0 5px; font-weight: 500; padding: 0.5rem 1.5rem; }
-        .nav-pills .nav-link.active { background-color: #ffffff; color: #343a40; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .card { border-radius: 12px; border: none; }
-        .icon-circle { width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
-        .bg-light-success { background-color: #e7f8f3; }
-        .text-success { color: #10b981 !important; }
-        .bg-light-warning { background-color: #fffbeb; }
-        .text-warning { color: #f59e0b !important; }
-        .bg-light-danger { background-color: #feedec; }
-        .text-danger { color: #ef4444 !important; }
-        .badge.rounded-pill { font-size: 0.75rem; font-weight: 500; padding: 0.55em 0.95em; }
-        
-        /* Classes dinâmicas para status e prioridade */
-        .status-em_andamento, .modal-badge.status-em_andamento { background-color: #FFFBEB; color: #D97706; border: 1px solid #FDE68A; }
-        .status-resolvido, .modal-badge.status-resolvido { background-color: #F0FDF4; color: #16A34A; border: 1px solid #A7F3D0;}
-        .status-cancelado, .modal-badge.status-cancelado { background-color: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0;}
-        .prioridade-baixa, .prioridade-comum, .modal-badge.prioridade-baixa, .modal-badge.prioridade-comum { background-color: #EFF6FF; color: #3B82F6; border: 1px solid #BFDBFE; }
-        .prioridade-media, .modal-badge.prioridade-media { background-color: #F5F3FF; color: #8B5CF6; border: 1px solid #DDD6FE; }
-        .prioridade-urgente, .modal-badge.prioridade-urgente { background-color: #FEF2F2; color: #EF4444; border: 1px solid #FECACA; }
-        
-        .list-group-item { border: 0; border-bottom: 1px solid #e9ecef; }
-        .list-group-item:last-child { border-bottom: 0; }
-        
-        /* --- ESTILOS REFINADOS para o Modal de Detalhes --- */
-        .modal-details .modal-content {
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            border: none;
-        }
-        .modal-details .modal-header {
-            border-bottom: 1px solid #e5e7eb;
-            padding: 1rem 1.5rem;
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-        }
-        .modal-details .modal-title-group {
-             display: flex;
-             align-items: center;
-             gap: 0.75rem;
-             margin-bottom: 0.25rem;
-        }
-        .modal-details .modal-title {
-            font-weight: 600;
-            font-size: 1.1rem;
-            color: #111827;
-            margin: 0;
-        }
-        .modal-details #modal-id-legivel-header {
-            font-size: 0.85rem;
-            color: #6b7280;
-        }
-        .modal-details .modal-body {
-            padding: 1.5rem;
-            padding-top: 1rem;
-        }
-        .modal-header .modal-badge {
-            font-size: 0.75rem;
-            font-weight: 500;
-            padding: 0.3em 0.8em;
-            line-height: 1.5;
-            align-self: center;
-        }
-        .detail-group {
-            background-color: transparent;
-            border-radius: 0;
-            padding: 0;
-            margin-bottom: 1.5rem;
-            border-bottom: 1px solid #e5e7eb;
-            padding-bottom: 1rem;
-        }
-        .detail-group:last-child {
-            border-bottom: none;
-            margin-bottom: 0;
-            padding-bottom: 0;
-        }
-        .detail-group-title {
-            font-size: 0.75rem;
-            font-weight: 500;
-            color: #6B7280;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            margin-bottom: 1rem;
-        }
-        .detail-label {
-            font-size: 0.8rem;
-            color: #6B7280;
-            margin-bottom: 0.15rem;
-            display: block;
-        }
-        .detail-value {
-            font-size: 0.95rem;
-            font-weight: 500;
-            color: #374151;
-            display: flex;
-            align-items: center;
-        }
-        .detail-value i {
-            margin-right: 0.5rem;
-            color: #6b7280;
-            font-size: 1.1em;
-        }
-        .detail-value-full {
-            font-size: 0.95rem;
-            font-weight: 500;
-            color: #374151;
-            word-break: break-word;
-            line-height: 1.6;
-        }
-        .classification-badges .modal-badge {
-            font-size: 0.8rem;
-            font-weight: 500;
-            padding: 0.4em 1em;
-        }
-
-        /* Container do gráfico */
-        .chart-container {
-            position: relative;
-            height: 250px;
-            width: 100%;
-        }
-    </style>
 </head>
 
 <body style="background-color: #f8f9fa;">
@@ -373,13 +34,34 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center flex-nowrap">
                     <li class="nav-item">
-                        <a class="nav-link active-dashboard me-2" href="{% url 'dashboard' %}"><i class="bi bi-grid-1x2-fill me-1"></i> Dashboard</a>
+                        <a class="nav-link me-2" href="{% url 'home' %}">
+                            <i class="bi bi-house-fill me-1"></i> Home
+                        </a>
+                    </li>
+                    
+                    {% if request.usuario.tipo_usuario == 'suporte' %}
+                    <li class="nav-item">
+                        <a class="nav-link active-dashboard me-2" href="{% url 'dashboard' %}">
+                            <i class="bi bi-grid-1x2-fill me-1"></i> Dashboard
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link active-meus-chamados me-2" href="{% url 'meus_chamados' %}">
+                            <i class="bi bi-list-check me-1"></i> Meus Chamados
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    <li class="nav-item">
+                        <a class="nav-link me-2" href="{% url 'sistema_chamados' %}">
+                            <i class="bi bi-ticket-detailed-fill me-1"></i> Chamados
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link me-2" href="{% url 'sistema_chamados' %}"><i class="bi bi-ticket-detailed-fill me-1"></i> Novo Chamado</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link me-2" href="{% url 'logout_usuario' %}"><i class="bi bi-box-arrow-right me-1"></i> Sair</a>
+                        <a class="nav-link me-2" href="{% url 'logout_usuario' %}">
+                            <i class="bi bi-box-arrow-right me-1"></i> Sair
+                        </a>
                     </li>
                 </ul>
             </div>
@@ -388,17 +70,87 @@
 
     <div class="container py-4">
         <div class="text-center mb-4">
-            <h2 class="fw-bold">Dashboard</h2>
-            <p class="text-muted">Visão geral dos chamados e gerenciamento de usuários</p>
+            <h2 class="fw-bold">
+                {% if request.usuario.tipo_usuario == 'suporte' %}
+                Dashboard de Suporte
+                {% else %}
+                Meus Chamados
+                {% endif %}
+            </h2>
+            <p class="text-muted">
+                {% if request.usuario.tipo_usuario == 'suporte' %}
+                Visão geral dos chamados e gerenciamento de usuários
+                {% else %}
+                Acompanhe o status dos seus chamados
+                {% endif %}
+            </p>
+            
+            <!-- ✅ NOVO: Contador de atualização automática -->
+            <div class="d-flex align-items-center justify-content-center text-muted small mt-2">
+                <i class="bi bi-arrow-clockwise me-2"></i>
+                <span id="contador-atualizacao-pagina">Próxima atualização automática em 5:00</span>
+                <button id="btn-atualizar-agora-pagina" class="btn btn-sm btn-outline-primary ms-2">
+                    <i class="bi bi-arrow-repeat me-1"></i>Atualizar Agora
+                </button>
+            </div>
         </div>
-        <ul class="nav nav-pills nav-fill mb-4 justify-content-center" id="dashboard-tabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="chamados-tab" data-bs-toggle="tab" data-bs-target="#chamados-content" type="button" role="tab" aria-controls="chamados-content" aria-selected="true">Chamados</button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="usuarios-tab" data-bs-toggle="tab" data-bs-target="#usuarios-content" type="button" role="tab" aria-controls="usuarios-content" aria-selected="false">Usuários</button>
-            </li>
-        </ul>
+
+        {% if request.usuario.tipo_usuario == 'suporte' %}
+        {% if filtros_ativos and filtros_ativos.periodo != 'todos' or filtros_ativos.urgencia != 'todos' or filtros_ativos.departamento != 'todos' or filtros_ativos.status != 'todos' %}
+        <div class="alert alert-info alert-dismissible fade show mb-4 filtros-ativos" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-funnel-fill me-2"></i>
+                <div class="flex-grow-1">
+                    <strong>Filtros Ativos:</strong>
+                    {% if filtros_ativos.periodo != 'todos' %}
+                    <span class="badge bg-primary me-1">Período: {{ filtros_ativos.periodo|title }}</span>
+                    {% endif %}
+                    {% if filtros_ativos.urgencia != 'todos' %}
+                    <span class="badge bg-warning me-1">Urgência: {{ filtros_ativos.urgencia|title }}</span>
+                    {% endif %}
+                    {% if filtros_ativos.departamento != 'todos' %}
+                        {% for dept in departamentos %}
+                            {% if dept.id_departamento|stringformat:"s" == filtros_ativos.departamento %}
+                            <span class="badge bg-success me-1">Departamento: {{ dept.nome }}</span>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                    {% if filtros_ativos.status != 'todos' %}
+                    <span class="badge bg-info me-1">Status: {{ filtros_ativos.status|title }}</span>
+                    {% endif %}
+                </div>
+                <a href="{% url 'dashboard' %}" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-x-circle me-1"></i>Limpar Filtros
+                </a>
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        {% if request.usuario.tipo_usuario == 'suporte' %}
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="flex-grow-1 me-3">
+                
+            </div>
+            <button type="button" class="btn btn-filtro-simples" data-bs-toggle="modal" data-bs-target="#modalFiltro">
+                <i class="bi bi-funnel me-2"></i>Filtrar Chamados
+            </button>
+        </div>
+        {% endif %}
+
+        {% if request.usuario.tipo_usuario == 'suporte' %}
+        <div>
+
+            <ul class="nav nav-pills nav-fill mb-4 justify-content-center" id="dashboard-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="chamados-tab" data-bs-toggle="tab" data-bs-target="#chamados-content" type="button" role="tab" aria-controls="chamados-content" aria-selected="true">Chamados</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="usuarios-tab" data-bs-toggle="tab" data-bs-target="#usuarios-content" type="button" role="tab" aria-controls="usuarios-content" aria-selected="false">Usuários</button>
+                </li>
+            </ul>
+        </div>
+        
         <div class="tab-content" id="dashboard-tabs-content">
             <div class="tab-pane fade show active" id="chamados-content" role="tabpanel" aria-labelledby="chamados-tab">
                 <div class="row mb-4">
@@ -415,36 +167,449 @@
                         <div class="card border-0 shadow-sm h-100"><div class="card-body d-flex justify-content-between align-items-center"><div><h6 class="text-muted fw-normal">Urgentes</h6><h2 class="fw-bold mb-0">{{ urgentes_count|default:"0" }}</h2></div><div class="icon-circle bg-light-danger text-danger"><i class="bi bi-exclamation-triangle"></i></div></div></div>
                     </div>
                 </div>
-                <div class="row">
-                    <div class="col-xl-4 mb-4 mb-xl-0">
-                        <div class="card border-0 shadow-sm h-100">
+
+                <!-- ✅ NOVO: Layout com gráficos e lista de chamados lado a lado -->
+                <div class="dashboard-layout mb-4">
+                    <!-- Coluna 1: Gráficos -->
+                    <div>
+                        <div class="card border-0 shadow-sm mb-4">
                             <div class="card-body">
-                                <h5 class="card-title fw-bold">Distribuição de Chamados</h5>
+                                <h5 class="card-title fw-bold">Distribuição por Status</h5>
                                 <div class="chart-container">
                                     <canvas id="pizzaChart"></canvas>
                                 </div>
                             </div>
                         </div>
+                        
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title fw-bold">Chamados por Departamento</h5>
+                                <div class="chart-container horizontal-bar-chart">
+                                    <canvas id="barrasHorizontalChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-xl-8">
-                        <div class="card border-0 shadow-sm"><div class="card-body"><h5 class="card-title fw-bold mb-3">Chamados Recentes</h5>{% if chamados_recentes %}<ul class="list-group list-group-flush">{% for chamado in chamados_recentes %}<li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3"><div><h6 class="mb-0 fw-bold">{{ chamado.nome_solicitante|default:chamado.usuario.username }} - <span class="text-muted fw-normal">{{ chamado.departamento.nome }}</span></h6><p class="mb-1 text-muted small">{{ chamado.titulo }}</p><small class="text-muted"><i class="bi bi-calendar-event me-1"></i> {{ chamado.criado_em|date:"d/m/Y \às H:i" }}</small></div><div class="text-end" style="min-width: 90px;"><span class="badge rounded-pill mb-2 status-{{ chamado.status }}">{{ chamado.get_status_display }}</span><br><span class="badge rounded-pill mb-2 prioridade-{{ chamado.urgencia }}">{{ chamado.get_urgencia_display }}</span><br><a href="#" class="text-decoration-none small text-primary fw-medium" data-bs-toggle="modal" data-bs-target="#detalhesChamadoModal" data-id-legivel="{{ chamado.id_legivel }}" data-status="{{ chamado.get_status_display }}" data-status-class="status-{{ chamado.status }}" data-solicitante="{{ chamado.nome_solicitante|default:chamado.usuario.username }}" data-departamento="{{ chamado.departamento.nome }}" data-localizacao="{{ chamado.get_modalidade_display }}" data-localizacao-icon="{% if chamado.modalidade_presencial %}bi-building{% else %}bi-house-door{% endif %}" data-data="{{ chamado.criado_em|date:"d/m/Y \às H:i" }}" data-titulo="{{ chamado.titulo }}" data-descricao="{{ chamado.descricao|linebreaksbr }}" data-prioridade="{{ chamado.get_urgencia_display }}" data-prioridade-class="prioridade-{{ chamado.urgencia }}"><i class="bi bi-eye me-1"></i>Ver mais</a></div></li>{% endfor %}</ul>{% else %}<div class="text-center py-5"><svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-hexagon text-muted" viewBox="0 0 16 16"><path d="M14 4.577v6.846L8 15l-6-3.577V4.577L8 1l6 3.577zM8.5.134a1 1 0 0 0-1 0l-6 3.577a1 1 0 0 0-.5.866v6.846a1 1 0 0 0 .5.866l6 3.577a1 1 0 0 0 1 0l6-3.577a1 1 0 0 0 .5-.866V4.577a1 1 0 0 0-.5-.866z"/></svg><h5 class="mt-3 fw-normal text-muted">Nenhum chamado encontrado</h5><p class="text-muted small">Crie um novo chamado para começar</p></div>{% endif %}</div></div>
+                    
+                    <!-- Coluna 2: Lista de Chamados Recentes -->
+                    <div>
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body">
+                                <h5 class="card-title fw-bold mb-3">Chamados Recentes</h5>
+                                {% if chamados_recentes %}
+                                <ul class="list-group list-group-flush">
+                                    {% for chamado in chamados_recentes %}
+                                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
+                                        <div>
+                                            <h6 class="mb-0 fw-bold">{{ chamado.get_nome_exibicao }} - <span class="text-muted fw-normal">{{ chamado.departamento.nome }}</span></h6>
+                                            <p class="mb-1 text-muted small">{{ chamado.titulo }}</p>
+                                            <small class="text-muted"><i class="bi bi-calendar-event me-1"></i> {{ chamado.criado_em|date:"d/m/Y \às H:i" }}</small>
+                                        </div>
+                                        <div class="text-end" style="min-width: 120px;">
+                                            <span class="badge rounded-pill mb-2 status-{{ chamado.status }}">{{ chamado.get_status_display }}</span><br>
+                                            <span class="badge rounded-pill mb-2 prioridade-{{ chamado.urgencia }}">{{ chamado.get_urgencia_display }}</span><br>
+                                            
+                                            <!-- ✅ CORREÇÃO: Botões com UUID correto -->
+                                            <div class="dropdown">
+                                                <a href="#" class="text-decoration-none small text-primary fw-medium dropdown-toggle" 
+                                                   data-bs-toggle="dropdown" aria-expanded="false">
+                                                    <i class="bi bi-eye me-1"></i>Ver mais
+                                                </a>
+                                                <ul class="dropdown-menu">
+                                                    <li>
+                                                        <a class="dropdown-item" href="#" 
+                                                           data-bs-toggle="modal" 
+                                                           data-bs-target="#detalhesChamadoModal" 
+                                                           data-id-legivel="{{ chamado.id_legivel }}" 
+                                                           data-status="{{ chamado.get_status_display }}" 
+                                                           data-status-class="status-{{ chamado.status }}" 
+                                                           data-solicitante="{{ chamado.get_nome_exibicao }}" 
+                                                           data-departamento="{{ chamado.departamento.nome }}" 
+                                                           data-localizacao="{{ chamado.get_modalidade_display }}" 
+                                                           data-localizacao-icon="{% if chamado.modalidade_presencial %}bi-building{% else %}bi-house-door{% endif %}" 
+                                                           data-data="{{ chamado.criado_em|date:"d/m/Y \às H:i" }}" 
+                                                           data-titulo="{{ chamado.titulo }}" 
+                                                           data-descricao="{{ chamado.descricao|linebreaksbr }}" 
+                                                           data-prioridade="{{ chamado.get_urgencia_display }}" 
+                                                           data-prioridade-class="prioridade-{{ chamado.urgencia }}">
+                                                            <i class="bi bi-info-circle me-2"></i>Detalhes completos
+                                                        </a>
+                                                    </li>
+                                                    <li><hr class="dropdown-divider"></li>
+                                                    <li>
+                                                        <h6 class="dropdown-header">Controles do Chatbot</h6>
+                                                    </li>
+                                                    <li>
+                                                        <a class="dropdown-item" href="#" onclick="intermediarChatbot('{{ chamado.id_chamado }}')">
+                                                            <i class="bi bi-robot me-2"></i>Intermediar Chatbot
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a class="dropdown-item" href="#" onclick="trocarStatusChamado('{{ chamado.id_chamado }}')">
+                                                            <i class="bi bi-arrow-repeat me-2"></i>Trocar Status
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <div class="text-center py-5">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-hexagon text-muted" viewBox="0 0 16 16">
+                                        <path d="M14 4.577v6.846L8 15l-6-3.577V4.577L8 1l6 3.577zM8.5.134a1 1 0 0 0-1 0l-6 3.577a1 1 0 0 0-.5.866v6.846a1 1 0 0 0 .5.866l6 3.577a1 1 0 0 0 1 0l6-3.577a1 1 0 0 0 .5-.866V4.577a1 1 0 0 0-.5-.866z"/>
+                                    </svg>
+                                    <h5 class="mt-3 fw-normal text-muted">Nenhum chamado encontrado</h5>
+                                    <p class="text-muted small">
+                                        {% if filtros_ativos.periodo != 'todos' or filtros_ativos.urgencia != 'todos' or filtros_ativos.departamento != 'todos' or filtros_ativos.status != 'todos' %}
+                                        Tente ajustar os filtros ou 
+                                        {% endif %}
+                                        <a href="{% url 'sistema_chamados' %}" class="text-decoration-none">crie um novo chamado</a> para começar
+                                    </p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title fw-bold mb-3">
+                                    <div>
+                                        Todos os Chamados 
+                                        <!-- ✅ NOVA BARRA DE PESQUISA -->
+                                        <div class="search-results-info" id="searchResultsInfo">
+                                            <div class="search-container">
+                                              <i class="bi bi-search search-icon"></i>
+                                              <input type="text" 
+                                                  class="form-control search-input" 
+                                                  id="searchChamados" 
+                                                  placeholder="Pesquisar chamados por ID, título, solicitante, departamento...">
+                                              <button class="search-clear" id="searchClear">
+                                                  <i class="bi bi-x-circle"></i>
+                                              </button>
+                                            </div>
+                                        </div>
+                   
+                                    </div>
+                                    <span class="badge bg-secondary ms-2" id="totalChamadosCount">{{ chamados_paginados.paginator.count }}</span>
+                                    <span class="badge bg-primary ms-2" id="filteredChamadosCount" style="display: none;"></span>
+                                </h5>
+                                
+                                {% if chamados_paginados %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover" id="tabelaChamados">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Solicitante</th>
+                                                <th>Departamento</th>
+                                                <th>Título</th>
+                                                <th>Status</th>
+                                                <th>Urgência</th>
+                                                <th>Data</th>
+                                                <th>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="chamadosTableBody">
+                                            {% for chamado in chamados_paginados %}
+                                            <tr class="chamado-row" 
+                                                data-id="{{ chamado.id_legivel }}"
+                                                data-solicitante="{{ chamado.get_nome_exibicao }}"
+                                                data-departamento="{{ chamado.departamento.nome }}"
+                                                data-titulo="{{ chamado.titulo }}"
+                                                data-descricao="{{ chamado.descricao }}">
+                                                <td>
+                                                    <small class="text-muted chamado-id">{{ chamado.id_legivel }}</small>
+                                                </td>
+                                                <td class="chamado-solicitante">
+                                                    <strong>{{ chamado.get_nome_exibicao }}</strong>
+                                                </td>
+                                                <td class="chamado-departamento">{{ chamado.departamento.nome }}</td>
+                                                <td class="chamado-titulo">
+                                                    <div class="fw-medium">{{ chamado.titulo|truncatewords:5 }}</div>
+                                                    <small class="text-muted chamado-descricao">{{ chamado.descricao|truncatewords:8 }}</small>
+                                                </td>
+                                                <td>
+                                                    <span class="badge rounded-pill status-{{ chamado.status }}">
+                                                        {{ chamado.get_status_display }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge rounded-pill prioridade-{{ chamado.urgencia }}">
+                                                        {{ chamado.get_urgencia_display }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <small class="text-muted">
+                                                        {{ chamado.criado_em|date:"d/m/Y" }}<br>
+                                                        {{ chamado.criado_em|date:"H:i" }}
+                                                    </small>
+                                                </td>
+                                                <td>
+                                                    <div class="dropdown">
+                                                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" 
+                                                                type="button" data-bs-toggle="dropdown" 
+                                                                aria-expanded="false">
+                                                            <i class="bi bi-gear"></i>
+                                                        </button>
+                                                        <ul class="dropdown-menu">
+                                                            <li>
+                                                                <a class="dropdown-item" href="#" 
+                                                                   data-bs-toggle="modal" 
+                                                                   data-bs-target="#detalhesChamadoModal" 
+                                                                   data-id-legivel="{{ chamado.id_legivel }}" 
+                                                                   data-status="{{ chamado.get_status_display }}" 
+                                                                   data-status-class="status-{{ chamado.status }}" 
+                                                                   data-solicitante="{{ chamado.get_nome_exibicao }}" 
+                                                                   data-departamento="{{ chamado.departamento.nome }}" 
+                                                                   data-localizacao="{{ chamado.get_modalidade_display }}" 
+                                                                   data-localizacao-icon="{% if chamado.modalidade_presencial %}bi-building{% else %}bi-house-door{% endif %}" 
+                                                                   data-data="{{ chamado.criado_em|date:'d/m/Y \às H:i' }}" 
+                                                                   data-titulo="{{ chamado.titulo }}" 
+                                                                   data-descricao="{{ chamado.descricao|linebreaksbr }}" 
+                                                                   data-prioridade="{{ chamado.get_urgencia_display }}" 
+                                                                   data-prioridade-class="prioridade-{{ chamado.urgencia }}">
+                                                                    <i class="bi bi-eye me-2"></i>Ver Detalhes
+                                                                </a>
+                                                            </li>
+                                                            <li><hr class="dropdown-divider"></li>
+                                                            <li>
+                                                                <h6 class="dropdown-header">Controles do Chatbot</h6>
+                                                            </li>
+                                                            <li>
+                                                                <a class="dropdown-item" href="#" onclick="intermediarChatbot('{{ chamado.id_chamado }}')">
+                                                                    <i class="bi bi-robot me-2"></i>Intermediar Chatbot
+                                                                </a>
+                                                            </li>
+                                                            <li>
+                                                                <a class="dropdown-item" href="#" onclick="trocarStatusChamado('{{ chamado.id_chamado }}')">
+                                                                    <i class="bi bi-arrow-repeat me-2"></i>Trocar Status
+                                                                </a>
+                                                            </li>
+                                                        </ul>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <!-- ✅ MENSAGEM DE NENHUM RESULTADO (inicialmente oculta) -->
+                                <div id="noSearchResults" class="no-results" style="display: none;">
+                                    <i class="bi bi-search display-4"></i>
+                                    <h5 class="mt-3 text-muted">Nenhum chamado encontrado</h5>
+                                    <p class="text-muted">Tente ajustar os termos da sua pesquisa.</p>
+                                    <button class="btn btn-outline-primary mt-2" id="btnLimparPesquisa">
+                                        <i class="bi bi-x-circle me-1"></i>Limpar Pesquisa
+                                    </button>
+                                </div>
+                                
+                                {% else %}
+                                <div class="text-center py-5">
+                                    <i class="bi bi-inbox display-4 text-muted"></i>
+                                    <h5 class="mt-3 text-muted">Nenhum chamado encontrado</h5>
+                                    <p class="text-muted">
+                                        {% if filtros_ativos.periodo != 'todos' or filtros_ativos.urgencia != 'todos' or filtros_ativos.departamento != 'todos' or filtros_ativos.status != 'todos' %}
+                                        Tente ajustar os filtros aplicados.
+                                        {% else %}
+                                        <a href="{% url 'sistema_chamados' %}" class="text-decoration-none">Crie um novo chamado</a> para começar.
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if chamados_paginados.paginator.num_pages > 1 %}
+                        <div class="card border-0 shadow-sm mt-4">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="text-muted small">
+                                        Mostrando {{ chamados_paginados.start_index }} - {{ chamados_paginados.end_index }} de {{ chamados_paginados.paginator.count }} chamados
+                                    </div>
+                                    
+                                    <nav aria-label="Navegação de páginas">
+                                        <ul class="pagination pagination-sm mb-0">
+                                            {% if chamados_paginados.has_previous %}
+                                            <li class="page-item">
+                                                <a class="page-link" href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Primeira">
+                                                    <i class="bi bi-chevron-double-left"></i>
+                                                </a>
+                                            </li>
+                                            <li class="page-item">
+                                                <a class="page-link" href="?page={{ chamados_paginados.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Anterior">
+                                                    <i class="bi bi-chevron-left"></i>
+                                                </a>
+                                            </li>
+                                            {% else %}
+                                            <li class="page-item disabled">
+                                                <span class="page-link"><i class="bi bi-chevron-double-left"></i></span>
+                                            </li>
+                                            <li class="page-item disabled">
+                                                <span class="page-link"><i class="bi bi-chevron-left"></i></span>
+                                            </li>
+                                            {% endif %}
+
+                                            {% for num in chamados_paginados.paginator.page_range %}
+                                                {% if chamados_paginados.number == num %}
+                                                <li class="page-item active">
+                                                    <span class="page-link">{{ num }}</span>
+                                                </li>
+                                                {% elif num > chamados_paginados.number|add:'-3' and num < chamados_paginados.number|add:'3' %}
+                                                <li class="page-item">
+                                                    <a class="page-link" href="?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ num }}</a>
+                                                </li>
+                                                {% endif %}
+                                            {% endfor %}
+
+                                            {% if chamados_paginados.has_next %}
+                                            <li class="page-item">
+                                                <a class="page-link" href="?page={{ chamados_paginados.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Próxima">
+                                                    <i class="bi bi-chevron-right"></i>
+                                                </a>
+                                            </li>
+                                            <li class="page-item">
+                                                <a class="page-link" href="?page={{ chamados_paginados.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Última">
+                                                    <i class="bi bi-chevron-double-right"></i>
+                                                </a>
+                                            </li>
+                                            {% else %}
+                                            <li class="page-item disabled">
+                                                <span class="page-link"><i class="bi bi-chevron-right"></i></span>
+                                            </li>
+                                            <li class="page-item disabled">
+                                                <span class="page-link"><i class="bi bi-chevron-double-right"></i></span>
+                                            </li>
+                                            {% endif %}
+                                        </ul>
+                                    </nav>
+                                    
+                                    <div class="ms-3">
+                                        <code>>/></code>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
             <div class="tab-pane fade" id="usuarios-content" role="tabpanel" aria-labelledby="usuarios-tab">
-                <div class="card border-0 shadow-sm"><div class="card-body text-center p-5"><i class="bi bi-people-fill display-3 text-muted"></i><h5 class="mt-3 text-muted">Gerenciamento de Usuários</h5><p class="text-muted">Esta seção está em desenvolvimento.</p></div></div>
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center p-5">
+                        <i class="bi bi-people-fill display-3 text-muted"></i>
+                        <h5 class="mt-3 text-muted">Gerenciamento de Usuários</h5>
+                        <p class="text-muted">Esta seção está em desenvolvimento.</p>
+                    </div>
+                </div>
             </div>
         </div>
+
+        {% else %}
+        <div class="row">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title fw-bold mb-4">
+                            <i class="bi bi-list-check me-2"></i>Meus Chamados
+                            <span class="badge bg-primary ms-2">{{ meus_chamados_count|default:"0" }}</span>
+                        </h5>
+                        
+                        {% if meus_chamados %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Departamento</th>
+                                        <th>Título</th>
+                                        <th>Status</th>
+                                        <th>Urgência</th>
+                                        <th>Data</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for chamado in meus_chamados %}
+                                    <tr>
+                                        <td>
+                                            <small class="text-muted">{{ chamado.id_legivel }}</small>
+                                        </td>
+                                        <td>{{ chamado.departamento.nome }}</td>
+                                        <td>
+                                            <div class="fw-medium">{{ chamado.titulo|truncatewords:5 }}</div>
+                                            <small class="text-muted">{{ chamado.descricao|truncatewords:8 }}</small>
+                                        </td>
+                                        <td>
+                                            <span class="badge rounded-pill status-{{ chamado.status }}">
+                                                {{ chamado.get_status_display }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge rounded-pill prioridade-{{ chamado.urgencia }}">
+                                                {{ chamado.get_urgencia_display }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">
+                                                {{ chamado.criado_em|date:"d/m/Y" }}<br>
+                                                {{ chamado.criado_em|date:"H:i" }}
+                                            </small>
+                                        </td>
+                                        <td>
+                                            <a href="#" class="btn btn-sm btn-outline-primary" 
+                                               data-bs-toggle="modal" 
+                                               data-bs-target="#detalhesChamadoModal" 
+                                               data-id-legivel="{{ chamado.id_legivel }}" 
+                                               data-status="{{ chamado.get_status_display }}" 
+                                               data-status-class="status-{{ chamado.status }}" 
+                                               data-solicitante="{{ chamado.get_nome_exibicao }}" 
+                                               data-departamento="{{ chamado.departamento.nome }}" 
+                                               data-localizacao="{{ chamado.get_modalidade_display }}" 
+                                               data-localizacao-icon="{% if chamado.modalidade_presencial %}bi-building{% else %}bi-house-door{% endif %}" 
+                                               data-data="{{ chamado.criado_em|date:'d/m/Y \às H:i' }}" 
+                                               data-titulo="{{ chamado.titulo }}" 
+                                               data-descricao="{{ chamado.descricao|linebreaksbr }}" 
+                                               data-prioridade="{{ chamado.get_urgencia_display }}" 
+                                               data-prioridade-class="prioridade-{{ chamado.urgencia }}">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-inbox display-4 text-muted"></i>
+                            <h5 class="mt-3 text-muted">Você ainda não criou nenhum chamado</h5>
+                            <p class="text-muted mb-4">Crie seu primeiro chamado para começar a usar o sistema.</p>
+                            <a href="{% url 'sistema_chamados' %}" class="btn btn-primary">
+                                <i class="bi bi-plus-circle me-2"></i>Criar Primeiro Chamado
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
     
-    <!-- Botão Flutuante do Chat - PADRÃO UNIFICADO -->
-    <div class="chat-indicator-container">
-        <button class="chat-floating-btn" id="chatFloatingBtn">
-            <i class="bi bi-chat-dots-fill"></i>
-        </button>
-    </div>
 
-    <!-- Modal do Chat -->
+
+    <!-- ✅ CORREÇÃO: Botão flutuante POSICIONADO CORRETAMENTE -->
+    <button id="chatFloatingBtn" class="chat-floating-btn">
+        <i class="bi bi-chat-dots-fill"><span id="novasMensagensIndicador"></span></i>
+    </button>
+
     <div class="modal fade chat-modal" id="chatModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -474,7 +639,6 @@
         </div>
     </div>
 
-    <!-- Modal de Detalhes do Chamado -->
     <div class="modal fade modal-details" id="detalhesChamadoModal" tabindex="-1" aria-labelledby="detalhesChamadoModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -514,18 +678,101 @@
             </div>
         </div>
     </div>
+
+    {% if request.usuario.tipo_usuario == 'suporte' %}
+    <div class="modal fade modal-filtro" id="modalFiltro" tabindex="-1" aria-labelledby="modalFiltroLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalFiltroLabel">
+                        <i class="bi bi-funnel me-2"></i>Filtrar Chamados
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formFiltro">
+                        <div class="filtro-group">
+                            <label class="filtro-label">Período</label>
+                            <select class="form-select" id="filtro-periodo" name="periodo">
+                                <option value="todos">Todo o período</option>
+                                <option value="hoje" {% if filtros_ativos.periodo == 'hoje' %}selected{% endif %}>Hoje</option>
+                                <option value="semana" {% if filtros_ativos.periodo == 'semana' %}selected{% endif %}>Última semana</option>
+                                <option value="mes" {% if filtros_ativos.periodo == 'mes' %}selected{% endif %}>Último mês</option>
+                                <option value="trimestre" {% if filtros_ativos.periodo == 'trimestre' %}selected{% endif %}>Último trimestre</option>
+                            </select>
+                        </div>
+
+                        <div class="filtro-group">
+                            <label class="filtro-label">Urgência</label>
+                            <select class="form-select" id="filtro-urgencia" name="urgencia">
+                                <option value="todos">Todas as urgências</option>
+                                <option value="baixa" {% if filtros_ativos.urgencia == 'baixa' %}selected{% endif %}>Baixa</option>
+                                <option value="media" {% if filtros_ativos.urgencia == 'media' %}selected{% endif %}>Média</option>
+                                <option value="urgente" {% if filtros_ativos.urgencia == 'urgente' %}selected{% endif %}>Urgente</option>
+                            </select>
+                        </div>
+
+                        <div class="filtro-group">
+                            <label class="filtro-label">Departamento</label>
+                            <select class="form-select" id="filtro-departamento" name="departamento">
+                                <option value="todos">Todos os departamentos</option>
+                                {% for dept in departamentos %}
+                                <option value="{{ dept.id_departamento }}" {% if filtros_ativos.departamento == dept.id_departamento|stringformat:"s" %}selected{% endif %}>
+                                    {{ dept.nome }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="filtro-group">
+                            <label class="filtro-label">Status</label>
+                            <select class="form-select" id="filtro-status" name="status">
+                                <option value="todos">Todos os status</option>
+                                <option value="em_andamento" {% if filtros_ativos.status == 'em_andamento' %}selected{% endif %}>Em Andamento</option>
+                                <option value="resolvido" {% if filtros_ativos.status == 'resolvido' %}selected{% endif %}>Resolvido</option>
+                                <option value="cancelado" {% if filtros_ativos.status == 'cancelado' %}selected{% endif %}>Cancelado</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" id="btn-limpar-filtros">
+                        <i class="bi bi-x-circle me-1"></i>Limpar Filtros
+                    </button>
+                    <button type="button" class="btn btn-success" id="btn-aplicar-filtros">
+                        <i class="bi bi-check-lg me-1"></i>Aplicar Filtros
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
         // =============================================
-        // SISTEMA DO GRÁFICO DE PIZZA - REIMPLEMENTADO
+        // SISTEMA COMPLETO - GRÁFICOS, PESQUISA E FILTROS
         // =============================================
         document.addEventListener('DOMContentLoaded', function () {
-            console.log('📊 Inicializando gráfico de pizza...');
+            console.log('📊 Inicializando sistema completo...');
             
-            // Inicializar gráfico de pizza
+            // Inicializar gráficos apenas para suporte
+            {% if request.usuario.tipo_usuario == 'suporte' %}
             inicializarGraficoPizza();
+            inicializarGraficoBarrasHorizontal();
+            {% endif %}
+            
+            // Configurar sistema de filtros apenas para suporte
+            {% if request.usuario.tipo_usuario == 'suporte' %}
+            configurarSistemaFiltros();
+            {% endif %}
+            
+            // ✅ NOVO: Configurar sistema de pesquisa
+            {% if request.usuario.tipo_usuario == 'suporte' %}
+            configurarSistemaPesquisa();
+            {% endif %}
             
             const detalhesModalEl = document.getElementById('detalhesChamadoModal');
             if (detalhesModalEl) {
@@ -534,13 +781,196 @@
                     preencherModalDetalhes(button, event.target); 
                 });
             }
+
+            // ✅ CORREÇÃO: Inicializar sistema de atualização
+            inicializarSistemaAtualizacao();
+            
+            // ✅ CORREÇÃO: Configurar botão de atualização manual da página
+            const btnAtualizarAgora = document.getElementById('btn-atualizar-agora-pagina');
+            if (btnAtualizarAgora) {
+                btnAtualizarAgora.addEventListener('click', function() {
+                    console.log('🔄 Atualização manual da página solicitada');
+                    location.reload();
+                });
+            }
         });
+
+        // ✅ NOVA FUNÇÃO: Configurar sistema de pesquisa
+        function configurarSistemaPesquisa() {
+            const searchInput = document.getElementById('searchChamados');
+            const searchClear = document.getElementById('searchClear');
+            const searchResultsInfo = document.getElementById('searchResultsInfo');
+            const filteredChamadosCount = document.getElementById('filteredChamadosCount');
+            const totalChamadosCount = document.getElementById('totalChamadosCount');
+            const noSearchResults = document.getElementById('noSearchResults');
+            const btnLimparPesquisa = document.getElementById('btnLimparPesquisa');
+            
+            if (!searchInput) {
+                console.error('❌ Elemento de pesquisa não encontrado');
+                return;
+            }
+            
+            let timeoutId = null;
+            
+            // Evento de input com debounce
+            searchInput.addEventListener('input', function() {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => {
+                    realizarPesquisa(this.value.trim());
+                }, 300);
+                
+                // Mostrar/ocultar botão de limpar
+                if (this.value.trim() !== '') {
+                    searchClear.style.display = 'block';
+                } else {
+                    searchClear.style.display = 'none';
+                }
+            });
+            
+            // Botão de limpar pesquisa
+            if (searchClear) {
+                searchClear.addEventListener('click', function() {
+                    searchInput.value = '';
+                    searchInput.focus();
+                    searchClear.style.display = 'none';
+                    realizarPesquisa('');
+                });
+            }
+            
+            // Botão de limpar pesquisa na mensagem de nenhum resultado
+            if (btnLimparPesquisa) {
+                btnLimparPesquisa.addEventListener('click', function() {
+                    searchInput.value = '';
+                    searchClear.style.display = 'none';
+                    realizarPesquisa('');
+                    searchInput.focus();
+                });
+            }
+            
+            // Tecla Escape para limpar pesquisa
+            searchInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    this.value = '';
+                    searchClear.style.display = 'none';
+                    realizarPesquisa('');
+                }
+            });
+            
+            console.log('✅ Sistema de pesquisa configurado');
+        }
+
+        // ✅ NOVA FUNÇÃO: Realizar pesquisa em tempo real
+        function realizarPesquisa(termo) {
+            const chamadosRows = document.querySelectorAll('.chamado-row');
+            const searchResultsInfo = document.getElementById('searchResultsInfo');
+            const filteredChamadosCount = document.getElementById('filteredChamadosCount');
+            const totalChamadosCount = document.getElementById('totalChamadosCount');
+            const noSearchResults = document.getElementById('noSearchResults');
+            const tabelaChamados = document.getElementById('tabelaChamados');
+            
+            let resultadosEncontrados = 0;
+            const termoLower = termo.toLowerCase();
+            
+            if (termo === '') {
+                // Mostrar todos os resultados
+                chamadosRows.forEach(row => {
+                    row.style.display = '';
+                    removerDestaque(row);
+                });
+                
+                searchResultsInfo.textContent = '';
+                filteredChamadosCount.style.display = 'none';
+                totalChamadosCount.style.display = 'inline';
+                noSearchResults.style.display = 'none';
+                if (tabelaChamados) tabelaChamados.style.display = '';
+                return;
+            }
+            
+            // Filtrar resultados
+            chamadosRows.forEach(row => {
+                const id = row.getAttribute('data-id') || '';
+                const solicitante = row.getAttribute('data-solicitante') || '';
+                const departamento = row.getAttribute('data-departamento') || '';
+                const titulo = row.getAttribute('data-titulo') || '';
+                const descricao = row.getAttribute('data-descricao') || '';
+                
+                const corresponde = 
+                    id.toLowerCase().includes(termoLower) ||
+                    solicitante.toLowerCase().includes(termoLower) ||
+                    departamento.toLowerCase().includes(termoLower) ||
+                    titulo.toLowerCase().includes(termoLower) ||
+                    descricao.toLowerCase().includes(termoLower);
+                
+                if (corresponde) {
+                    row.style.display = '';
+                    resultadosEncontrados++;
+                    aplicarDestaque(row, termoLower);
+                } else {
+                    row.style.display = 'none';
+                    removerDestaque(row);
+                }
+            });
+            
+            // Atualizar interface com resultados
+            if (resultadosEncontrados > 0) {
+                searchResultsInfo.textContent = `${resultadosEncontrados} chamado(s) encontrado(s) para "${termo}"`;
+                filteredChamadosCount.textContent = resultadosEncontrados;
+                filteredChamadosCount.style.display = 'inline';
+                totalChamadosCount.style.display = 'none';
+                noSearchResults.style.display = 'none';
+                if (tabelaChamados) tabelaChamados.style.display = '';
+            } else {
+                searchResultsInfo.textContent = `Nenhum chamado encontrado para "${termo}"`;
+                filteredChamadosCount.style.display = 'none';
+                totalChamadosCount.style.display = 'inline';
+                noSearchResults.style.display = 'block';
+                if (tabelaChamados) tabelaChamados.style.display = 'none';
+            }
+            
+            console.log(`🔍 Pesquisa: "${termo}" - ${resultadosEncontrados} resultados`);
+        }
+
+        // ✅ NOVA FUNÇÃO: Aplicar destaque aos termos encontrados
+        function aplicarDestaque(row, termo) {
+            const elementos = [
+                { selector: '.chamado-id', prop: 'textContent' },
+                { selector: '.chamado-solicitante', prop: 'textContent' },
+                { selector: '.chamado-departamento', prop: 'textContent' },
+                { selector: '.chamado-titulo .fw-medium', prop: 'textContent' },
+                { selector: '.chamado-descricao', prop: 'textContent' }
+            ];
+            
+            elementos.forEach(({ selector, prop }) => {
+                const elemento = row.querySelector(selector);
+                if (elemento && elemento[prop]) {
+                    const textoOriginal = elemento[prop];
+                    const regex = new RegExp(`(${termo})`, 'gi');
+                    const textoDestacado = textoOriginal.replace(regex, '<mark class="highlight">$1</mark>');
+                    
+                    // Só aplica se houve alteração
+                    if (textoDestacado !== textoOriginal) {
+                        elemento.innerHTML = textoDestacado;
+                    }
+                }
+            });
+        }
+
+        // ✅ NOVA FUNÇÃO: Remover destaque
+        function removerDestaque(row) {
+            const elementos = row.querySelectorAll('.chamado-id, .chamado-solicitante, .chamado-departamento, .chamado-titulo .fw-medium, .chamado-descricao');
+            
+            elementos.forEach(elemento => {
+                if (elemento.textContent !== elemento.innerText) {
+                    elemento.textContent = elemento.innerText || elemento.textContent;
+                }
+            });
+        }
 
         function inicializarGraficoPizza() {
             const ctx = document.getElementById('pizzaChart');
             
             if (!ctx) {
-                console.error('❌ Elemento do gráfico não encontrado');
+                console.error('❌ Elemento do gráfico de pizza não encontrado');
                 return;
             }
             
@@ -549,7 +979,7 @@
             const solucionados = {{ solucionados_count|default:"0" }};
             const total = {{ total_chamados|default:"0" }};
             
-            console.log(`📈 Dados do gráfico - Pendentes: ${pendentes}, Solucionados: ${solucionados}, Total: ${total}`);
+            console.log(`📈 Dados do gráfico pizza - Pendentes: ${pendentes}, Solucionados: ${solucionados}, Total: ${total}`);
             
             // Se não há dados, mostrar mensagem
             if (total === 0) {
@@ -604,7 +1034,7 @@
                             }
                         }
                     },
-                    cutout: '0%', // Gráfico de pizza completo (não doughnut)
+                    cutout: '0%',
                     animation: {
                         animateScale: true,
                         animateRotate: true
@@ -612,9 +1042,381 @@
                 }
             });
             
+            // ✅ SALVAR referência para atualização
+            window.graficoPizza = pizzaChart;
+            
             console.log('✅ Gráfico de pizza inicializado com sucesso');
         }
 
+        function inicializarGraficoBarrasHorizontal() {
+            const ctx = document.getElementById('barrasHorizontalChart');
+            
+            if (!ctx) {
+                console.error('❌ Elemento do gráfico de barras horizontal não encontrado');
+                return;
+            }
+
+            // ✅ CORREÇÃO: Usar dados REAIS do contexto Django
+            let departamentosData = [];
+            
+            try {
+                // Tenta usar dados reais passados pelo Django
+                {% if departamentos_data %}
+                departamentosData = {{ departamentos_data|safe }};
+                console.log('📊 Dados reais carregados do Django:', departamentosData);
+                {% else %}
+                // Fallback: busca dados via API
+                console.log('🔄 Buscando dados via API...');
+                carregarDadosGraficoAPI();
+                return; // Sai da função, será chamada novamente pela API
+                {% endif %}
+            } catch (e) {
+                console.warn('⚠️ Erro ao carregar dados do Django, buscando via API:', e);
+                carregarDadosGraficoAPI();
+                return;
+            }
+            
+            renderizarGraficoBarras(departamentosData);
+        }
+
+        // ✅ NOVA FUNÇÃO: Carregar dados via API
+        async function carregarDadosGraficoAPI() {
+            try {
+                console.log('🔄 Buscando dados do gráfico via API...');
+                
+                const response = await fetch('/api/dados-grafico/');
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('✅ Dados recebidos da API:', data.departamentos_data);
+                    renderizarGraficoBarras(data.departamentos_data);
+                    
+                    // ✅ ATUALIZAR também as estatísticas nos cards
+                    atualizarEstatisticasCards(data.estatisticas);
+                } else {
+                    throw new Error(data.message || 'Erro na API');
+                }
+            } catch (error) {
+                console.error('❌ Erro ao carregar dados da API:', error);
+                // Fallback para dados de exemplo
+                const dadosExemplo = [
+                    {nome: "TI", quantidade: 12},
+                    {nome: "RH", quantidade: 8},
+                    {nome: "Financeiro", quantidade: 15},
+                    {nome: "Marketing", quantidade: 6},
+                    {nome: "Vendas", quantidade: 9},
+                    {nome: "Operações", quantidade: 11}
+                ];
+                renderizarGraficoBarras(dadosExemplo);
+            }
+        }
+
+        // ✅ NOVA FUNÇÃO: Renderizar gráfico com dados
+        function renderizarGraficoBarras(departamentosData) {
+            const ctx = document.getElementById('barrasHorizontalChart');
+            
+            if (!ctx) return;
+            
+            console.log('📊 Renderizando gráfico com dados:', departamentosData);
+            
+            // Se não há dados, mostrar mensagem
+            if (departamentosData.length === 0) {
+                ctx.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-bar-chart display-4"></i>
+                        <p class="mt-2">Nenhum dado de departamento disponível</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Extrair nomes e quantidades
+            const nomesDepartamentos = departamentosData.map(dept => dept.nome);
+            const quantidades = departamentosData.map(dept => dept.quantidade);
+            
+            // ✅ CORREÇÃO: Todas as barras na MESMA COR
+            const corUnica = 'rgba(59, 130, 246, 0.8)'; // Azul consistente
+            
+            // Destruir gráfico existente se houver
+            if (window.graficoBarrasHorizontal) {
+                window.graficoBarrasHorizontal.destroy();
+            }
+            
+            window.graficoBarrasHorizontal = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: nomesDepartamentos,
+                    datasets: [{
+                        label: 'Quantidade de Chamados',
+                        data: quantidades,
+                        backgroundColor: nomesDepartamentos.map(() => corUnica), // ✅ TODAS BARRAS MESMA COR
+                        borderColor: nomesDepartamentos.map(() => '#1d4ed8'),
+                        borderWidth: 2,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                    }]
+                },
+                options: {
+                    indexAxis: 'y', // ✅ GRÁFICO HORIZONTAL
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Chamados: ${context.raw}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                font: {
+                                    size: 11
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Quantidade de Chamados'
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                font: {
+                                    size: 11
+                                }
+                            },
+                            grid: {
+                                display: false
+                            },
+                            title: {
+                                display: true,
+                                text: 'Departamentos'
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeInOutQuart'
+                    }
+                }
+            });
+            
+            console.log('✅ Gráfico de barras HORIZONTAL renderizado com sucesso');
+        }
+
+        // ✅ NOVA FUNÇÃO: Atualizar estatísticas nos cards
+        function atualizarEstatisticasCards(estatisticas) {
+            if (!estatisticas) return;
+            
+            const elementos = {
+                'total-chamados': estatisticas.total_chamados,
+                'pendentes-count': estatisticas.pendentes_count,
+                'solucionados-count': estatisticas.solucionados_count,
+                'urgentes-count': estatisticas.urgentes_count
+            };
+            
+            for (const [id, valor] of Object.entries(elementos)) {
+                const elemento = document.getElementById(id);
+                if (elemento) {
+                    // Animação de contagem
+                    animarContagem(elemento, valor);
+                }
+            }
+            
+            console.log('✅ Estatísticas dos cards atualizadas');
+        }
+
+        // ✅ NOVA FUNÇÃO: Animação de contagem suave
+        function animarContagem(elemento, novoValor) {
+            const valorAtual = parseInt(elemento.textContent) || 0;
+            if (valorAtual === novoValor) return;
+            
+            const diferenca = novoValor - valorAtual;
+            const duracao = 800; // 0.8 segundos
+            const frames = 40;
+            const incremento = diferenca / frames;
+            
+            let frame = 0;
+            const intervalo = setInterval(() => {
+                frame++;
+                const valorAtualizado = Math.round(valorAtual + (incremento * frame));
+                elemento.textContent = valorAtualizado;
+                
+                if (frame >= frames) {
+                    elemento.textContent = novoValor;
+                    clearInterval(intervalo);
+                }
+            }, duracao / frames);
+        }
+
+        // ✅ FUNÇÕES CORRIGIDAS: Controles do Chatbot com UUID
+        async function intermediarChatbot(idChamado) {
+            console.log(`🤖 Intermediando chatbot para chamado UUID: ${idChamado}`);
+            
+            try {
+                mostrarIndicadorCarregamento(`Intermediando chatbot...`);
+                
+                const response = await fetch(`/api/intermediar-chat/${idChamado}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCSRFToken(),
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    mostrarMensagemSucesso(data.message || 'Chat intermediado com sucesso!');
+                    
+                    // Recarregar após sucesso
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    mostrarMensagemErro(data.message || 'Erro ao intermediar chat');
+                }
+            } catch (error) {
+                console.error('❌ Erro ao intermediar chatbot:', error);
+                mostrarMensagemErro('Erro de conexão ao intermediar chat');
+            }
+        }
+
+        async function trocarStatusChamado(idChamado) {
+            console.log(`🔄 Trocando status do chamado UUID: ${idChamado}`);
+            
+            try {
+                // Modal para selecionar novo status
+                const novoStatus = await mostrarModalSelecaoStatus();
+                if (!novoStatus) return;
+                
+                mostrarIndicadorCarregamento(`Alterando status para ${novoStatus}...`);
+                
+                const response = await fetch(`/api/trocar-status/${idChamado}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCSRFToken(),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        status: novoStatus,
+                        observacao: 'Status alterado via dashboard'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    mostrarMensagemSucesso(data.message || 'Status alterado com sucesso!');
+                    
+                    // Recarregar após sucesso
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    mostrarMensagemErro(data.message || 'Erro ao alterar status');
+                }
+            } catch (error) {
+                console.error('❌ Erro ao trocar status:', error);
+                mostrarMensagemErro('Erro de conexão ao alterar status');
+            }
+        }
+
+        // ✅ CORREÇÃO: Sistema de atualização automática
+        function inicializarSistemaAtualizacao() {
+            console.log('🚀 Iniciando sistema de atualização automática...');
+            
+            // Verificar se é página de suporte
+            const isSuportePage = {% if request.usuario.tipo_usuario == 'suporte' %}true{% else %}false{% endif %};
+            
+            if (!isSuportePage) {
+                console.log('❌ Não é usuário de suporte, atualização desativada');
+                return;
+            }
+            
+            console.log('✅ Usuário de suporte detectado, iniciando sistema de atualização...');
+            
+            let intervaloAtualizacao = null;
+            let tempoRestante = 5 * 60; // 5 minutos (atualizado de 2 para 5 minutos)
+            
+            // ✅ FUNÇÃO: Atualizar dados via API
+            async function atualizarDadosDashboard() {
+                console.log('🔄 Atualizando dados do dashboard via API...');
+                
+                try {
+                    const response = await fetch('/api/dados-grafico/');
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // Atualizar gráfico de barras
+                        renderizarGraficoBarras(data.departamentos_data);
+                        
+                        // Atualizar estatísticas
+                        atualizarEstatisticasCards(data.estatisticas);
+                        
+                        console.log('✅ Dados atualizados com sucesso');
+                        mostrarIndicadorAtualizacaoRapida('Dados atualizados!');
+                    }
+                } catch (error) {
+                    console.error('❌ Erro ao atualizar dados:', error);
+                }
+            }
+            
+            // ✅ FUNÇÃO: Atualizar contador
+            function atualizarContadorInterface() {
+                tempoRestante -= 1;
+                
+                const minutos = Math.floor(tempoRestante / 60);
+                const segundos = tempoRestante % 60;
+                
+                if (tempoRestante <= 0) {
+                    console.log('⏰ Atualizando dados automaticamente...');
+                    atualizarDadosDashboard();
+                    tempoRestante = 5 * 60; // Reiniciar contador para 5 minutos
+                    return;
+                }
+                
+                // Atualizar contador na interface
+                const contadorElement = document.getElementById('contador-atualizacao-pagina');
+                if (contadorElement) {
+                    contadorElement.textContent = `Próxima atualização em ${minutos}:${segundos.toString().padStart(2, '0')}`;
+                }
+            }
+            
+            // ✅ INICIAR sistema
+            function iniciarSistemaAtualizacao() {
+                intervaloAtualizacao = setInterval(atualizarContadorInterface, 1000);
+                
+                // Primeira atualização após 10 segundos
+                setTimeout(() => {
+                    atualizarDadosDashboard();
+                }, 10000);
+                
+                console.log('✅ Sistema de atualização automática iniciado (5 minutos)');
+            }
+            
+            // ✅ INICIAR
+            iniciarSistemaAtualizacao();
+            
+            // Limpar ao sair
+            window.addEventListener('beforeunload', function() {
+                if (intervaloAtualizacao) {
+                    clearInterval(intervaloAtualizacao);
+                }
+            });
+        }
+
+        // ✅ FUNÇÕES AUXILIARES
         function preencherModalDetalhes(button, modal) {
             // Extrai dados
             const idLegivel = button.getAttribute('data-id-legivel');
@@ -653,147 +1455,243 @@
             statusBadge2.className = 'badge rounded-pill modal-badge ' + statusClass;
         }
 
-        /**
-         * SISTEMA DE ATUALIZAÇÃO AUTOMÁTICA - PÁGINA INTEIRA
-         * Atualiza a página completa a cada 5 minutos
-         */
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Iniciando sistema de atualização automática da PÁGINA INTEIRA (5 minutos)...');
+        function configurarSistemaFiltros() {
+            console.log('⚙️ Configurando sistema de filtros simples...');
             
-            let intervaloAtualizacao = null;
-            let tempoRestante = 5 * 60; // 5 minutos em segundos
+            const btnAplicarFiltros = document.getElementById('btn-aplicar-filtros');
+            const btnLimparFiltros = document.getElementById('btn-limpar-filtros');
             
-            // ✅ VERIFICAR se estamos na página de dashboard/todos_chamados
-            const isDashboardPage = window.location.pathname.includes('dashboard') || 
-                                window.location.pathname.includes('todos_chamados') ||
-                                document.querySelector('h2')?.textContent.includes('Dashboard');
-            
-            if (!isDashboardPage) {
-                console.log('❌ Não é página do dashboard, atualização desativada');
-                return;
+            if (btnAplicarFiltros) {
+                btnAplicarFiltros.addEventListener('click', aplicarFiltros);
             }
             
-            console.log('✅ Página do dashboard detectada, iniciando atualização...');
+            if (btnLimparFiltros) {
+                btnLimparFiltros.addEventListener('click', limparFiltros);
+            }
+            
+            console.log('✅ Sistema de filtros configurado');
+        }
 
-            // Função para atualizar a página INTEIRA
-            function atualizarPaginaCompleta() {
-                console.log('🔄 ATUALIZANDO PÁGINA INTEIRA (F5)...');
-                
-                // Mostrar indicador de carregamento
-                mostrarIndicadorCarregamento();
-                
-                // Recarregar a página após um pequeno delay
-                setTimeout(() => {
-                    console.log('📍 RECARREGANDO AGORA!');
-                    location.reload(true); // true força recarregamento do cache
-                }, 1000);
+        function aplicarFiltros() {
+            console.log('🔍 Aplicando filtros...');
+            
+            const filtroPeriodo = document.getElementById('filtro-periodo').value;
+            const filtroUrgencia = document.getElementById('filtro-urgencia').value;
+            const filtroDepartamento = document.getElementById('filtro-departamento').value;
+            const filtroStatus = document.getElementById('filtro-status').value;
+            
+            // Construir URL com parâmetros
+            let url = window.location.pathname;
+            const params = new URLSearchParams();
+            
+            if (filtroPeriodo !== 'todos') {
+                params.append('periodo', filtroPeriodo);
             }
             
-            // Função para mostrar indicador de carregamento
-            function mostrarIndicadorCarregamento() {
-                let indicador = document.getElementById('indicador-atualizacao-pagina');
-                if (!indicador) {
-                    indicador = document.createElement('div');
-                    indicador.id = 'indicador-atualizacao-pagina';
-                    indicador.className = 'alert alert-info alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-2';
-                    indicador.style.zIndex = '9999';
-                    indicador.innerHTML = `
-                        <i class="bi bi-arrow-clockwise me-2"></i>
-                        <strong>Atualizando página...</strong> Buscando novos chamados e dados atualizados.
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    `;
-                    document.body.appendChild(indicador);
-                }
-                
-                // Auto-remover após 5 segundos
-                setTimeout(() => {
-                    if (indicador.parentNode) {
-                        indicador.remove();
-                    }
-                }, 5000);
+            if (filtroUrgencia !== 'todos') {
+                params.append('urgencia', filtroUrgencia);
             }
             
-            // Função para atualizar o contador na interface
-            function atualizarContador() {
-                tempoRestante -= 1;
-                
-                const minutos = Math.floor(tempoRestante / 60);
-                const segundos = tempoRestante % 60;
-                
-                if (tempoRestante <= 0) {
-                    console.log('⏰ TEMPO ESGOTADO - ATUALIZANDO PÁGINA!');
-                    atualizarPaginaCompleta();
-                    // Reiniciar contador
-                    tempoRestante = 5 * 60;
-                    return;
-                }
-                
-                // Atualizar o contador na interface se existir
-                const contadorElement = document.getElementById('contador-atualizacao-pagina');
-                if (contadorElement) {
-                    contadorElement.textContent = `Próxima atualização automática em ${minutos}:${segundos.toString().padStart(2, '0')}`;
-                }
+            if (filtroDepartamento !== 'todos') {
+                params.append('departamento', filtroDepartamento);
             }
             
-            // Adicionar contador à interface
-            function adicionarContadorInterface() {
-                // Verificar se já existe
-                if (document.getElementById('contador-atualizacao-pagina')) {
-                    return;
-                }
-                
-                // Encontrar um local apropriado para o contador
-                const header = document.querySelector('h2');
-                if (header) {
-                    const contadorDiv = document.createElement('div');
-                    contadorDiv.className = 'mt-2 mb-3 text-center';
-                    contadorDiv.innerHTML = `
-                        <div class="d-flex align-items-center justify-content-center text-muted small">
-                            <i class="bi bi-arrow-clockwise me-2"></i>
-                            <span id="contador-atualizacao-pagina">Próxima atualização automática em 5:00</span>
-                            <button id="btn-atualizar-agora-pagina" class="btn btn-sm btn-outline-primary ms-2">
-                                <i class="bi bi-arrow-repeat me-1"></i>Atualizar Agora
-                            </button>
+            if (filtroStatus !== 'todos') {
+                params.append('status', filtroStatus);
+            }
+            
+            const queryString = params.toString();
+            if (queryString) {
+                url += '?' + queryString;
+            }
+            
+            console.log('🔄 Redirecionando para:', url);
+            
+            // Fechar modal
+            const modalFiltro = bootstrap.Modal.getInstance(document.getElementById('modalFiltro'));
+            if (modalFiltro) {
+                modalFiltro.hide();
+            }
+            
+            // Mostrar indicador de carregamento
+            mostrarIndicadorCarregamento('Aplicando filtros...');
+            
+            // Redirecionar para URL com filtros
+            setTimeout(() => {
+                window.location.href = url;
+            }, 500);
+        }
+
+        function limparFiltros() {
+            console.log('🧹 Limpando filtros...');
+            
+            // Fechar modal
+            const modalFiltro = bootstrap.Modal.getInstance(document.getElementById('modalFiltro'));
+            if (modalFiltro) {
+                modalFiltro.hide();
+            }
+            
+            // Mostrar indicador de carregamento
+            mostrarIndicadorCarregamento('Limpando filtros...');
+            
+            // Redirecionar para URL sem parâmetros
+            setTimeout(() => {
+                window.location.href = window.location.pathname;
+            }, 500);
+        }
+
+        function mostrarModalSelecaoStatus() {
+            return new Promise((resolve) => {
+                const modalHtml = `
+                    <div class="modal fade" id="modalSelecaoStatus" tabindex="-1">
+                        <div class="modal-dialog modal-sm">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Selecionar Status</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="d-grid gap-2">
+                                        <button type="button" class="btn btn-warning btn-status" data-status="em_andamento">
+                                            <i class="bi bi-clock"></i> Em Andamento
+                                        </button>
+                                        <button type="button" class="btn btn-success btn-status" data-status="resolvido">
+                                            <i class="bi bi-check-circle"></i> Resolvido
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    `;
-                    header.parentNode.insertBefore(contadorDiv, header.nextSibling);
-                    
-                    // Adicionar evento ao botão de atualização manual
-                    document.getElementById('btn-atualizar-agora-pagina').addEventListener('click', function() {
-                        console.log('🔄 Atualização manual da página solicitada...');
-                        atualizarPaginaCompleta();
+                    </div>
+                `;
+                
+                // Adicionar modal ao DOM
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                const modalElement = document.getElementById('modalSelecaoStatus');
+                const modal = new bootstrap.Modal(modalElement);
+                
+                // Configurar eventos dos botões
+                modalElement.querySelectorAll('.btn-status').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const status = this.getAttribute('data-status');
+                        modal.hide();
+                        setTimeout(() => {
+                            modalElement.remove();
+                            resolve(status);
+                        }, 500);
                     });
-                }
-            }
-            
-            // Iniciar sistema de atualização da PÁGINA INTEIRA
-            function iniciarAtualizacaoPagina() {
-                // Adicionar contador à interface
-                adicionarContadorInterface();
+                });
                 
-                // Iniciar intervalo de atualização
-                intervaloAtualizacao = setInterval(atualizarContador, 1000);
+                // Se modal for fechado sem seleção
+                modalElement.addEventListener('hidden.bs.modal', function() {
+                    setTimeout(() => {
+                        modalElement.remove();
+                        resolve(null);
+                    }, 500);
+                });
                 
-                console.log('✅ Sistema de atualização da PÁGINA INTEIRA iniciado (5 minutos)');
-                
-                // Fazer uma verificação inicial
-                atualizarContador();
-            }
-            
-            // ✅ INICIAR o sistema de atualização da PÁGINA
-            iniciarAtualizacaoPagina();
-            
-            // Limpar intervalo quando a página for fechada
-            window.addEventListener('beforeunload', function() {
-                if (intervaloAtualizacao) {
-                    clearInterval(intervaloAtualizacao);
-                    console.log('🧹 Intervalo de atualização da página limpo');
-                }
+                modal.show();
             });
-        });
-    </script>
+        }
 
-    <!-- Script do Chat Bot -->
+        function getCSRFToken() {
+            return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+        }
+
+        function mostrarMensagemSucesso(mensagem) {
+            mostrarMensagem(mensagem, 'success');
+        }
+
+        function mostrarMensagemErro(mensagem) {
+            mostrarMensagem(mensagem, 'danger');
+        }
+
+        function mostrarMensagem(mensagem, tipo) {
+            const toastContainer = document.getElementById('toastContainer') || criarToastContainer();
+            const toastId = 'toast-' + Date.now();
+            
+            const toastHtml = `
+                <div id="${toastId}" class="toast align-items-center text-bg-${tipo} border-0" role="alert">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            ${mensagem}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                    </div>
+                </div>
+            `;
+            
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+            const toastElement = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastElement);
+            toast.show();
+            
+            // Remover após ser escondido
+            toastElement.addEventListener('hidden.bs.toast', function() {
+                toastElement.remove();
+            });
+        }
+
+        function criarToastContainer() {
+            const container = document.createElement('div');
+            container.id = 'toastContainer';
+            container.className = 'toast-container position-fixed top-0 end-0 p-3';
+            container.style.zIndex = '9999';
+            document.body.appendChild(container);
+            return container;
+        }
+
+        function mostrarIndicadorCarregamento(mensagem) {
+            let indicador = document.getElementById('indicador-carregamento-filtros');
+            if (!indicador) {
+                indicador = document.createElement('div');
+                indicador.id = 'indicador-carregamento-filtros';
+                indicador.className = 'alert alert-info alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-2';
+                indicador.style.zIndex = '9999';
+                document.body.appendChild(indicador);
+            }
+            
+            indicador.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm me-2" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <strong>${mensagem}</strong>
+                </div>
+            `;
+            
+            // Auto-remover após 5 segundos (caso algo dê errado)
+            setTimeout(() => {
+                if (indicador.parentNode) {
+                    indicador.remove();
+                }
+            }, 5000);
+        }
+
+        function mostrarIndicadorAtualizacaoRapida(mensagem) {
+            const indicador = document.createElement('div');
+            indicador.className = 'alert alert-success alert-dismissible fade show position-fixed bottom-0 end-0 m-3';
+            indicador.style.zIndex = '9999';
+            indicador.style.maxWidth = '300px';
+            indicador.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-check-circle-fill me-2"></i>
+                    <span>${mensagem}</span>
+                    <button type="button" class="btn-close ms-2" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            document.body.appendChild(indicador);
+            
+            // Auto-remover após 3 segundos
+            setTimeout(() => {
+                if (indicador.parentNode) {
+                    indicador.remove();
+                }
+            }, 3000);
+        }
+    </script>
+    
+    <!-- ✅ APENAS a referência ao arquivo externo -->
     <script src="{% static 'js/chat-bot.js' %}"></script>
 
 </body>

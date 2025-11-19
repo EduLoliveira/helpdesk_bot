@@ -1,4 +1,3 @@
-# models.py - COMPLETO E CORRIGIDO
 from django.db import models
 import uuid
 import random
@@ -16,7 +15,6 @@ class Usuario(models.Model):
     tipo_usuario = models.CharField(max_length=15, choices=TIPO_CHOICES, default='colaborador', verbose_name='Tipo de Usuário')
     criado_em = models.DateTimeField(auto_now_add=True, verbose_name='Criado em')
     
-
 
 class Departamento(models.Model):
     id_departamento = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -36,13 +34,12 @@ class Chamado(models.Model):
     STATUS_CHOICES = [
         ('em_andamento', 'Em Andamento'),
         ('resolvido', 'Resolvido'),
-        ('cancelado', 'Cancelado'),
     ]
     
     id_chamado = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     titulo = models.CharField(max_length=200, verbose_name='Título do Problema')
     descricao = models.TextField(verbose_name='Descrição Detalhada')
-    nome_solicitante = models.CharField(max_length=100, verbose_name='Nome do Solicitante')
+    nome_solicitante = models.CharField(max_length=100, verbose_name='Nome do Solicitante', blank=True)
     
     # Departamento como ForeignKey
     departamento = models.ForeignKey(Departamento, on_delete=models.CASCADE, verbose_name='Departamento')
@@ -75,6 +72,18 @@ class Chamado(models.Model):
         verbose_name='Usuário Solicitante'
     )
     
+    # ✅ CAMPOS PARA SUPORTE
+    visualizado_suporte = models.BooleanField(default=False, verbose_name='Visualizado pelo Suporte')
+    controle_chat_suporte = models.BooleanField(default=False, verbose_name='Controle do Chat pelo Suporte')
+    suporte_responsavel = models.ForeignKey(
+        Usuario, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='chamados_atendidos',
+        verbose_name='Suporte Responsável'
+    )
+    
     # Datas importantes
     criado_em = models.DateTimeField(auto_now_add=True, verbose_name='Criado em')
     atualizado_em = models.DateTimeField(auto_now=True, verbose_name='Atualizado em')
@@ -84,6 +93,10 @@ class Chamado(models.Model):
     id_legivel = models.CharField(max_length=20, unique=True, blank=True, verbose_name='ID Legível')
     
     def save(self, *args, **kwargs):
+        # ✅ CORREÇÃO: Garantir que nome_solicitante seja preenchido
+        if not self.nome_solicitante and self.usuario:
+            self.nome_solicitante = self.usuario.username
+        
         # Gerar ID legível se não existir
         if not self.id_legivel:
             self.id_legivel = self.gerar_id_legivel()
@@ -104,47 +117,61 @@ class Chamado(models.Model):
         super().save(*args, **kwargs)
     
     def gerar_id_legivel(self):
-        return f"TKT-{''.join(random.choices(string.digits, k=13))}"
+        """Gera ID legível único"""
+        while True:
+            # ✅ CORREÇÃO: ID mais curto e garantia de unicidade
+            novo_id = f"TKT-{random.randint(10000, 99999)}"
+            if not Chamado.objects.filter(id_legivel=novo_id).exists():
+                return novo_id
     
     def determinar_urgencia(self):
+        """Determina urgência automaticamente baseada no título"""
         titulo_lower = self.titulo.lower()
+        descricao_lower = self.descricao.lower()
+        texto_completo = f"{titulo_lower} {descricao_lower}"
         
-        # Palavras-chave para urgência URGENTE
+        # ✅ CORREÇÃO: Palavras-chave mais abrangentes
         urgent_keywords = [
             'urgente', 'crítico', 'critico', 'emergência', 'emergencia', 
-            'parado', 'fora do ar', 'queda', 'não funciona', 'quebrado',
-            'prioridade', 'impeditivo'
+            'parado', 'fora do ar', 'queda', 'não funciona', 'nao funciona',
+            'quebrado', 'prioridade', 'impeditivo', 'bloqueado', 'crash',
+            'erro crítico', 'sistema down', 'indisponível', 'paralisado'
         ]
         
-        # Palavras-chave para urgência BAIXA
         low_keywords = [
-            'dúvida', 'duvida', 'consulta', 'informação', 'sugestão',
-            'melhoria', 'questionamento', 'orientação'
+            'dúvida', 'duvida', 'consulta', 'informação', 'informacao',
+            'sugestão', 'sugestao', 'melhoria', 'questionamento', 
+            'orientação', 'orientacao', 'curiosidade', 'dica'
         ]
         
         for keyword in urgent_keywords:
-            if keyword in titulo_lower:
+            if keyword in texto_completo:
                 return 'urgente'
         
         for keyword in low_keywords:
-            if keyword in titulo_lower:
+            if keyword in texto_completo:
                 return 'baixa'
         
-        # Se não encontrou palavras específicas, retorna média
         return 'media'
+    
+    def get_nome_exibicao(self):
+        """✅ MÉTODO: Obter nome do solicitante"""
+        if self.nome_solicitante:
+            return self.nome_solicitante
+        elif self.usuario:
+            return self.usuario.username
+        return "Solicitante"
     
     def get_modalidade_display(self):
         return "Presencial" if self.modalidade_presencial else "Home Office"
     
     def get_urgencia_display(self):
-        """Retorna a descrição da urgência"""
         for choice in self.URGENCIA_CHOICES:
             if choice[0] == self.urgencia:
                 return choice[1]
         return self.urgencia
     
     def get_status_display(self):
-        """Retorna a descrição do status"""
         for choice in self.STATUS_CHOICES:
             if choice[0] == self.status:
                 return choice[1]
@@ -166,6 +193,9 @@ class Chamado(models.Model):
     
     def __str__(self):
         return f"{self.id_legivel} - {self.titulo}"
+    
+    class Meta:
+        ordering = ['-criado_em']
 
 class InteracaoChamado(models.Model):
     TIPO_REMETENTE = [
@@ -187,6 +217,8 @@ class InteracaoChamado(models.Model):
         ('atualizacao_status', 'Atualização de Status'),
         ('mensagem', 'Mensagem'),
         ('inicio', 'Início'),
+        ('intermediacao_ativa', 'Intermediação Ativa'),
+        ('mensagem_fallback', 'Mensagem Fallback'),
     ]
     
     id_interacao = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -194,8 +226,7 @@ class InteracaoChamado(models.Model):
     remetente = models.CharField(max_length=10, choices=TIPO_REMETENTE, verbose_name='Remetente')
     mensagem = models.TextField(verbose_name='Mensagem')
     criado_em = models.DateTimeField(auto_now_add=True, verbose_name='Criado em')
-    
-    # Para interações do bot, podemos armazenar o tipo de ação
+    visualizada_automatica = models.BooleanField(default=False)
     acao_bot = models.CharField(
         max_length=50, 
         blank=True, 
@@ -204,8 +235,19 @@ class InteracaoChamado(models.Model):
         choices=ACAO_BOT_CHOICES
     )
     
+    # ✅ Suporte responsável pela mensagem
+    suporte_responsavel = models.ForeignKey(
+        Usuario, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        verbose_name='Suporte Responsável'
+    )
+    
     class Meta:
         ordering = ['criado_em']
+        verbose_name = 'Interação do Chamado'
+        verbose_name_plural = 'Interações dos Chamados'
     
     def __str__(self):
         return f"{self.chamado.id_legivel} - {self.remetente} - {self.criado_em.strftime('%d/%m/%Y %H:%M')}"
@@ -242,6 +284,8 @@ class Notificacao(models.Model):
     class Meta:
         db_table = 'notificacoes'
         ordering = ['-criado_em']
+        verbose_name = 'Notificação'
+        verbose_name_plural = 'Notificações'
     
     def __str__(self):
         return f"Notificação para {self.usuario.username} - {self.get_tipo_display()}"

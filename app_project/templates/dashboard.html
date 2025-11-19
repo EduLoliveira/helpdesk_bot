@@ -1,0 +1,465 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suporte TI - Dashboard</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <link rel="stylesheet" href="{% static 'css/homeNotificacoes.css' %}">
+
+    <script>
+        // ✅ DEFINIR FUNÇÕES GLOBAIS PRIMEIRO
+        window.marcarNotificacaoComoLida = async function(notificacaoId) {
+            console.log("🔔 Marcando como lida:", notificacaoId);
+            
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            
+            if (!csrfToken) {
+                console.error('❌ Token CSRF não encontrado!');
+                alert('Erro de segurança: token não encontrado.');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/notificacoes/${notificacaoId}/marcar-como-lida/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Erro HTTP: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log("✅ Notificação marcada como lida com sucesso");
+                    
+                    // ✅ ATUALIZA A UI
+                    const notifElement = document.getElementById(`notif-${notificacaoId}`);
+                    if (notifElement) {
+                        notifElement.classList.add('lida');
+                        
+                        const actionLink = notifElement.querySelector('.action-link');
+                        if (actionLink) {
+                            actionLink.remove();
+                        }
+                    }
+                    
+                    // ✅ ATUALIZA O CONTADOR
+                    const badgeNotificacao = document.querySelector('.badge-notificacao');
+                    if (badgeNotificacao) {
+                        const currentCount = parseInt(badgeNotificacao.textContent) || 0;
+                        const newCount = currentCount - 1;
+                        
+                        if (newCount > 0) {
+                            badgeNotificacao.textContent = `${newCount} nova${newCount > 1 ? 's' : ''}`;
+                        } else {
+                            badgeNotificacao.remove();
+                        }
+                    }
+                    
+                    mostrarMensagemSucesso('Notificação marcada como lida!');
+                    
+                } else {
+                    console.error('❌ Erro do servidor:', data.message);
+                    mostrarMensagemErro('Erro ao marcar notificação como lida: ' + (data.message || 'Erro desconhecido'));
+                }
+            } catch (error) {
+                console.error('❌ Erro na requisição:', error);
+                mostrarMensagemErro('Erro de conexão ao marcar notificação.');
+            }
+        }
+
+        // ✅ FUNÇÕES AUXILIARES
+        function mostrarMensagemSucesso(mensagem) {
+            const toast = document.createElement('div');
+            toast.className = 'position-fixed top-0 end-0 p-3';
+            toast.style.zIndex = '9999';
+            toast.innerHTML = `
+                <div class="toast show" role="alert">
+                    <div class="toast-header bg-success text-white">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        <strong class="me-auto">Sucesso</strong>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${mensagem}
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        function mostrarMensagemErro(mensagem) {
+            const toast = document.createElement('div');
+            toast.className = 'position-fixed top-0 end-0 p-3';
+            toast.style.zIndex = '9999';
+            toast.innerHTML = `
+                <div class="toast show" role="alert">
+                    <div class="toast-header bg-danger text-white">
+                        <i class="bi bi-exclamation-circle-fill me-2"></i>
+                        <strong class="me-auto">Erro</strong>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${mensagem}
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 5000);
+        }
+
+        // ✅ VERIFICAÇÃO DE CARREGAMENTO
+        console.log('✅ Função marcarNotificacaoComoLida carregada:', typeof window.marcarNotificacaoComoLida);
+    </script>
+</head>
+
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top">
+        <div class="container">
+            <div class="d-flex align-items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-ticket"
+                    viewBox="0 0 16 16">
+                    <path
+                        d="M0 4.5A1.5 1.5 0 0 1 1.5 3h13A1.5 1.5 0 0 1 16 4.5V6a.5.5 0 0 1-.5.5 1.5 1.5 0 0 0 0 3 .5.5 0 0 1 .5.5v1.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 11.5V10a.5.5 0 0 1 .5-.5 1.5 1.5 0 1 0 0-3A.5.5 0 0 1 0 6zM1.5 4a.5.5 0 0 0-.5.5v1.05a2.5 2.5 0 0 1 0 4.9v1.05a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-1.05a2.5 2.5 0 0 1 0-4.9V4.5a.5.5 0 0 0-.5-.5z" />
+                </svg>
+                <div class="d-flex flex-column lh-1 ms-2">
+                    <span class="fw-bold fs-6" style="color: #1f2937;">Suporte TI</span>
+                    <small class="text-muted" style="font-size: 0.75rem;">Sistema de Chamados</small>
+                </div>
+            </div>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center flex-nowrap">
+                    
+                    <li class="nav-item">
+                        <a class="nav-link active-home me-2" href="{% url 'home' %}">
+                            <i class="bi bi-house-door-fill me-1"></i> Home
+                        </a>
+                    </li>
+                    
+                    {% if usuario.tipo_usuario == 'suporte' %}
+                    <li class="nav-item">
+                        <a class="nav-link active-dashboard me-2" href="{% url 'todos_chamados' %}">
+                            <i class="bi bi-grid-1x2-fill me-1"></i> Dashboard
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    <li class="nav-item">
+                        <a class="nav-link active-chamados me-2" href="{% url 'sistema_chamados' %}">
+                            <i class="bi bi-ticket-detailed-fill me-1"></i> Chamados
+                        </a>
+                    </li>
+                    
+                    <li class="nav-item">
+                        <a class="nav-link me-2" href="{% url 'logout_usuario' %}">
+                            <i class="bi bi-box-arrow-right me-1"></i> Sair
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4 py-md-5">
+
+        <!-- === CARDS DE ESTATÍSTICAS === -->
+        <div class="row g-3 g-lg-4 mb-4">
+            <div class="col-md-6 col-xl-3">
+                <div class="stat-card">
+                    <div>
+                        <h5>Total de Chamados</h5>
+                        <h2 class="display-4">{{ total_chamados|default:"0" }}</h2>
+                    </div>
+                    <div class="icon-wrapper icon-total">
+                        <i class="fa fa-ticket"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-xl-3">
+                <div class="stat-card">
+                    <div>
+                        <h5>Pendentes</h5>
+                        <h2 class="display-4">{{ pendentes_count|default:"0" }}</h2>
+                    </div>
+                    <div class="icon-wrapper icon-pendentes">
+                        <i class="bi bi-clock"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-xl-3">
+                <div class="stat-card">
+                    <div>
+                        <h5>Solucionados</h5>
+                        <h2 class="display-4">{{ solucionados_count|default:"0" }}</h2>
+                    </div>
+                    <div class="icon-wrapper icon-solucionados">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-xl-3">
+                <div class="stat-card">
+                    <div>
+                        <h5>Urgentes</h5>
+                        <h2 class="display-4">{{ urgentes_count|default:"0" }}</h2>
+                    </div>
+                    <div class="icon-wrapper icon-urgentes">
+                        <i class="bi bi-exclamation-circle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- === CONTEÚDO PERSONALIZADO RESPONSIVO === -->
+        <div class="custom-responsive-content">
+            <i class="bi bi-info-circle me-2"></i>
+            Sistema de Suporte TI - Dashboard Principal
+        </div>
+
+        <div class="row g-3 g-lg-4 mb-4">
+            <!-- === AÇÕES RÁPIDAS === -->
+            <div class="col-lg-4">
+                <div class="dashboard-card">
+                    <h4>Ações Rápidas</h4>
+                    <div class="d-grid gap-3 mt-4">
+                        <a href="{% url 'sistema_chamados' %}" class="btn btn-acao-rapida btn-success">
+                            <i class="bi bi-plus-lg me-2"></i> Novo Chamado
+                        </a>
+                        
+                        <!-- ✅ CORREÇÃO: Botão "Ver Dashboard" apenas para suporte -->
+                        {% if usuario.tipo_usuario == 'suporte' %}
+                        <a href="{% url 'todos_chamados' %}" class="btn btn-acao-rapida btn-outline-secondary">
+                             <i class="bi bi-envelope me-2"></i> Ver Dashboard
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- === NOTIFICAÇÕES === -->
+            <div class="col-lg-8">
+                <div class="dashboard-card">
+                    <div class="notificacoes-header">
+                        <h4>Notificações</h4>
+                        {% if notificacoes_nao_lidas_count > 0 %}
+                        <span class="badge rounded-pill badge-notificacao">
+                            {{ notificacoes_nao_lidas_count }} nova{% if notificacoes_nao_lidas_count > 1 %}s{% endif %}
+                        </span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="notificacoes-list" id="notificacaoContainer">
+                        {% if not notificacoes %}
+                            <div class="notificacoes-empty">
+                                <i class="bi bi-bell-slash"></i>
+                                <p>Nenhuma notificação no momento</p>
+                            </div>
+                        {% else %}
+                            {% for n in notificacoes %}
+                            <div class="notificacao-item {% if n.lida %}lida{% endif %}" id="notif-{{ n.id_notificacao }}">
+                                <i class="bi bi-bell icon"></i>
+                                
+                                <div class="content" onclick="abrirModalDetalhes('{{ n.id_notificacao }}')">
+                                    <p class="mb-1">{{ n.mensagem|safe }}</p>
+                                    <span class="time">
+                                        {{ n.criado_em|date:"d/m/Y" }} às {{ n.criado_em|time:"H:i" }}
+                                    </span>
+                                </div>
+                                
+                                <!-- ✅ CORREÇÃO: Botão "Marcar como lida" para TODOS os usuários -->
+                                {% if not n.lida %}
+                                <a href="javascript:void(0)" onclick="window.marcarNotificacaoComoLida('{{ n.id_notificacao }}')" class="action-link ms-auto">
+                                    Marcar como lida
+                                </a>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- === INFORMAÇÕES DO USUÁRIO === -->
+        <div class="row">
+            <div class="col-12">
+                <div class="user-info-card">
+                    <div class="avatar">
+                        <i class="bi bi-person-fill"></i>
+                    </div>
+                    <div class="info">
+                        <h6>{{ usuario.username }}</h6>
+                        <p class="mb-0">
+                            {% if usuario.tipo_usuario == 'suporte' %}
+                            Usuário de Suporte
+                            {% else %}
+                            Colaborador
+                            {% endif %}
+                        </p>
+                    </div>
+                    <span class="badge text-capitalize ms-auto">{{ usuario.tipo_usuario }}</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Modal de Detalhes do Chamado -->
+    <div class="modal fade" id="detalhesModal" tabindex="-1" aria-labelledby="detalhesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="detalhesModalLabel">Detalhes do Chamado</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <h5 id="modalChamadoTitulo" class="mb-2"></h5>
+                    <span id="modalChamadoStatus" class="badge bg-secondary mb-3"></span>
+                    <p id="modalChamadoDescricao" style="white-space: pre-wrap;"></p>
+                    <hr>
+                    <small class="text-muted" id="modalChamadoIdLegivel"></small>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <div>
+                        <!-- ✅ CORREÇÃO: Botões apenas para suporte -->
+                        {% if usuario.tipo_usuario == 'suporte' %}
+                        <button type="button" class="btn btn-outline-secondary" id="btnMarcarLida">
+                            <i class="bi bi-check-lg"></i> Marcar como Lida
+                        </button>
+                        {% endif %}
+                    </div>
+                    <div>
+                        {% if usuario.tipo_usuario == 'suporte' %}
+                        <button type="button" class="btn btn-primary" id="btnTomarControle">
+                            <i class="bi bi-chat-dots-fill"></i> Tomar Controle do Chat
+                        </button>
+                        {% endif %}
+                        
+                        <button type="button" class="btn btn-success" id="btnMarcarConcluido">
+                            <i class="bi bi-check-circle-fill"></i> Marcar como Concluído
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Floating Button -->
+    <div class="chat-indicator-container">
+        <button class="chat-floating-btn" id="chatFloatingBtn">
+            <i class="bi bi-chat-dots-fill"></i>
+        </button>
+        <span id="novasMensagensIndicador" style="display: none;"></span>
+    </div>
+
+    <!-- Modal do Chat -->
+    <div class="modal fade chat-modal" id="chatModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="chat-header-content">
+                        <i class="bi bi-robot chat-header-icon"></i>
+                        <div class="chat-header-title">
+                            <h5 class="mb-0">Bot Hyper</h5>
+                            <p class="mb-0">Assistente de Suporte TI</p>
+                        </div>
+                    </div>
+                    <span class="chat-status" id="chatStatus">Online</span>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body p-0 d-flex flex-column">
+                    <div class="chat-messages flex-grow-1" id="chatMessages"></div>
+                    
+                    <div class="chat-initial-state">
+                        <i class="bi bi-robot initial-icon"></i>
+                        <h5>Olá! Sou o Bot Hyper</h5>
+                        <p>Selecione um chamado para iniciar o chat ou abra um novo.</p>
+                    </div>
+
+                    <div class="chat-input-section border-top">
+                        <div class="input-group">
+                            <input type="text" class="form-control border-end-0" id="messageInput" 
+                                   placeholder="Digite sua mensagem..." aria-label="Mensagem">
+                            <button class="btn send-btn" id="sendBtn" type="button" style="position:absolute;" aria-label="Enviar mensagem">
+                                <i class="bi bi-send-fill"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- ✅ SCRIPT DO CHAT BOT EXISTENTE -->
+    <script src="{% static 'js/chat-bot.js' %}"></script>
+
+    <script>
+        // Scripts adicionais podem vir aqui
+        console.log('✅ Página carregada completamente');
+        
+   
+        // Atualizar notificações a cada 30 segundos
+        function atualizarNotificacoes() {
+            fetch('/api/notificacoes/verificar/')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.total_nao_lidas > 0) {
+                        // Recarregar a página se houver novas notificações
+                        location.reload();
+                    }
+                })
+                .catch(error => console.error('Erro ao verificar notificações:', error));
+        }
+
+        // Verificar a cada 30 segundos
+        setInterval(atualizarNotificacoes, 30000);
+
+        // Verificar também quando a página ganha foco
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                atualizarNotificacoes();
+            }
+        });
+
+
+        // ✅ Função para abrir modal de detalhes (exemplo)
+        function abrirModalDetalhes(notificacaoId) {
+            console.log('Abrindo detalhes da notificação:', notificacaoId);
+            // Implementar lógica para buscar detalhes da notificação
+        }
+    </script>
+    
+</body>
+</html>
