@@ -1,4 +1,4 @@
-# bot_dialogos.py - ATUALIZADO
+# bot_dialogos.py - COMPLETO E ATUALIZADO
 from django.utils import timezone
 from .models import Chamado, Notificacao
 
@@ -57,7 +57,39 @@ class BibliotecaDialogosBot:
             'mensagem': f"🚨 **NOVO CHAMADO CRIADO**<br>📝 {chamado.titulo}<br>👤 {chamado.nome_solicitante}<br>🏢 {chamado.departamento.nome}<br>🆔 {chamado.id_legivel}",
             'acao_bot': 'notificacao_novo_chamado',
             'notificacao': True,
-            'broadcast': True  # Indica que deve ser enviado para todos os suportes
+            'broadcast': True
+        }
+    
+    @staticmethod
+    def get_notificacao_novo_chamado_broadcast(chamado, nome_solicitante, departamento):
+        """✅ NOVO MÉTODO: Cria notificação de broadcast para TODOS os suportes"""
+        data_hora = timezone.localtime(chamado.criado_em)
+        data_formatada = data_hora.strftime('%d/%m/%Y %H:%M')
+        
+        return {
+            'mensagem': f"""🚨 **NOVO CHAMADO CRIADO - BROADCAST**
+📝 **Título:** {chamado.titulo}
+👤 **Solicitante:** {nome_solicitante}
+🏢 **Departamento:** {departamento.nome}
+🆔 **ID:** {chamado.id_legivel}
+⏰ **Criado em:** {data_formatada}
+🚨 **Urgência:** {chamado.get_urgencia_display()}""",
+            'acao_bot': 'notificacao_novo_chamado_broadcast',
+            'notificacao': True,
+            'broadcast': True,
+            'broadcast_tipo': 'todos_suportes'
+        }
+    
+    @staticmethod
+    def get_notificacao_colaborador(chamado):
+        """Gera notificação formatada para o colaborador conforme a imagem"""
+        data_hora = timezone.localtime(chamado.criado_em)
+        data_formatada = data_hora.strftime('%d/%m/%Y às %H:%M')
+        
+        return {
+            'mensagem': f"**SEU CHAMADO FOI CRIADO!**\n\n{chamado.titulo}\n\n{chamado.id_legivel} Aguarde enquanto nossa equipe entra em contato.\n\n{data_formatada}",
+            'acao_bot': 'notificacao_colaborador',
+            'notificacao': True
         }
     
     @staticmethod
@@ -90,6 +122,14 @@ class BibliotecaDialogosBot:
         return {
             'mensagem': "🎉 **Excelente!** Chamado finalizado com sucesso. Obrigado por confirmar a resolução!",
             'acao_bot': 'finalizacao_usuario'
+        }
+    
+    @staticmethod
+    def get_mensagem_finalizacao_completa():
+        """Mensagem completa de finalização com agradecimento"""
+        return {
+            'mensagem': "🙏 **Agradecemos por utilizar nosso sistema de chamados!**\n\nSe tiver mais alguma necessidade, não hesite em abrir um novo chamado.\n\nTenha um excelente dia!",
+            'acao_bot': 'finalizacao_completa'
         }
     
     @staticmethod

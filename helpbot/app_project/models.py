@@ -266,20 +266,28 @@ class ConfirmacaoResolucao(models.Model):
     def __str__(self):
         return f"Confirmação - {self.chamado.id_legivel}"
 
+# models.py - ATUALIZE o modelo Notificacao
+
 class Notificacao(models.Model):
     TIPO_CHOICES = [
         ('novo_chamado', 'Novo Chamado'),
         ('atualizacao', 'Atualização'),
         ('mensagem', 'Nova Mensagem'),
+        ('novo_chamado_broadcast', 'Novo Chamado (Broadcast)'),  # ✅ ADICIONE
+        ('sistema_novo_chamado', 'Sistema - Novo Chamado'),  # ✅ ADICIONE
     ]
     
     id_notificacao = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='notificacoes')
     chamado = models.ForeignKey(Chamado, on_delete=models.CASCADE, related_name='notificacoes')
     mensagem = models.TextField()
-    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default='novo_chamado')
+    tipo = models.CharField(max_length=30, choices=TIPO_CHOICES, default='novo_chamado')  # ✅ ATUALIZE max_length
     lida = models.BooleanField(default=False)
     criado_em = models.DateTimeField(auto_now_add=True)
+    
+    # ✅ ADICIONE ESTES CAMPOS PARA BROADCAST:
+    broadcast = models.BooleanField(default=False, verbose_name="Notificação Broadcast")
+    broadcast_id = models.CharField(max_length=255, null=True, blank=True, verbose_name="ID do Broadcast")
     
     class Meta:
         db_table = 'notificacoes'

@@ -548,6 +548,28 @@ def sistema_chamados(request):
         'usuario': request.usuario
     })
 
+# === FUNÇÕES AUXILIARES PARA FORMATAÇÃO DE MENSAGENS ===
+
+def formatar_mensagem_colaborador(chamado):
+    """Formata a mensagem para o colaborador conforme a imagem"""
+    data_hora = timezone.localtime(chamado.criado_em)
+    data_formatada = data_hora.strftime('%d/%m/%Y às %H:%M')
+    
+    return f"""**SEU CHAMADO FOI CRIADO!**  
+{chamado.titulo}  
+
+{chamado.id_legivel} Aguarde enquanto nossa equipe entra em contato.  
+
+{data_formatada}"""
+
+def formatar_mensagem_suporte(chamado, nome_solicitante, departamento):
+    """Formata a mensagem para o suporte com todas as informações"""
+    return f"""🚨 **NOVO CHAMADO CRIADO**
+📝 {chamado.titulo}
+👤 {nome_solicitante}
+🏢 {departamento.nome}
+🆔 {chamado.id_legivel}"""
+
 @usuario_required
 @require_http_methods(["POST"])
 @rate_limit(max_requests=20, window=3600)
@@ -646,9 +668,28 @@ def criar_chamado_api(request):
                 'message': 'Erro ao salvar chamado no banco de dados'
             }, status=500)
         
-        # ✅ CORREÇÃO: Criar primeira mensagem com tratamento de erro
+        # ✅ CORREÇÃO: Criar mensagem para o COLABORADOR formatada como na imagem
         try:
-            criar_interacoes_iniciais(chamado, request.usuario.username, departamento, modalidade_presencial)
+            # 1. Criar mensagem no chat do colaborador formatada
+            mensagem_colaborador = formatar_mensagem_colaborador(chamado)
+            InteracaoChamado.objects.create(
+                chamado=chamado,
+                remetente='bot',
+                mensagem=mensagem_colaborador,
+                acao_bot='criacao_chamado'
+            )
+            
+            # 2. Criar notificação para o COLABORADOR
+            Notificacao.objects.create(
+                usuario=request.usuario,
+                chamado=chamado,
+                mensagem=mensagem_colaborador,
+                tipo='meu_chamado'
+            )
+            
+            # 3. Notificar SUPORTES com mensagem detalhada
+            notificar_suportes_novo_chamado(chamado, request.usuario.username, departamento)
+            
         except Exception as e:
             logger.error(f"Erro ao criar interações iniciais: {str(e)}")
             # Não falha o chamado por erro nas interações
@@ -688,67 +729,145 @@ def criar_chamado_api(request):
             'message': 'Erro interno do servidor. Tente novamente.'
         }, status=500)
 
-def criar_interacoes_iniciais(chamado, nome_solicitante, departamento, modalidade_presencial):
-    """✅ CORREÇÃO CRÍTICA: Cria APENAS a primeira mensagem do bot e notifica suportes SEPARADAMENTE"""
+def notificar_suportes_novo_chamado(chamado, nome_solicitante, departamento):
+    """✅ CORREÇÃO FINAL: Notifica TODOS os suportes com mensagem detalhada usando broadcast"""
     try:
-        # ✅ CORREÇÃO: Buscar apenas a PRIMEIRA mensagem da sequência
-        sequencia = bot_dialogos.get_sequencia_inicial_completa(
-            chamado=chamado,
-            nome_solicitante=nome_solicitante,
-            departamento=departamento,
-            modalidade_presencial=modalidade_presencial
-        )
-        
-        if sequencia:
-            # ✅ CORREÇÃO CRÍTICA: APENAS a primeira mensagem vai para o chat do chamado
-            primeira_interacao = sequencia[0]
-            InteracaoChamado.objects.create(
-                chamado=chamado,
-                remetente='bot',
-                mensagem=primeira_interacao['mensagem'],
-                acao_bot=primeira_interacao.get('acao_bot', 'inicio')
-            )
-            logger.info(f"✅ Interação inicial criada para chamado {chamado.id_legivel}: {primeira_interacao['mensagem'][:50]}...")
-            
-            # ✅ CORREÇÃO: NOTIFICAR USUÁRIOS DE SUPORTE VIA MODEL SEPARADO
-            notificar_suportes_novo_chamado(chamado)
-            
-    except Exception as e:
-        logger.error(f"❌ Erro ao criar interações iniciais: {str(e)}")
-        # Cria uma mensagem padrão em caso de erro
-        InteracaoChamado.objects.create(
-            chamado=chamado,
-            remetente='bot',
-            mensagem="Olá! Recebi seu chamado e já estou trabalhando para ajudá-lo.",
-            acao_bot='inicio'
-        )
-
-def notificar_suportes_novo_chamado(chamado):
-    """✅ CORREÇÃO: Notifica suportes E também o usuário colaborador"""
-    try:
-        # 1. Notificar todos os usuários de suporte
+        # Notificar TODOS os usuários de suporte
         usuarios_suporte = Usuario.objects.filter(tipo_usuario='suporte')
         
+        # Usar o novo método do bot para mensagem de broadcast
+        notificacao_data = bot_dialogos.get_notificacao_novo_chamado_broadcast(
+            chamado, nome_solicitante, departamento
+        )
+        
+        count_notificacoes = 0
         for usuario_suporte in usuarios_suporte:
+            # ✅ CRIA UMA NOTIFICAÇÃO PARA CADA SUPORTE INDIVIDUALMENTE
             Notificacao.objects.create(
                 usuario=usuario_suporte,
                 chamado=chamado,
-                mensagem=f"🚨 **NOVO CHAMADO CRIADO**\n📝 {chamado.titulo}\n👤 {chamado.nome_solicitante}\n🏢 {chamado.departamento.nome}\n🆔 {chamado.id_legivel}",
-                tipo='novo_chamado'
+                mensagem=notificacao_data['mensagem'],
+                tipo='novo_chamado_broadcast',
+                lida=False,  # Sempre começa como não lida
+                broadcast=True,  # Marca como broadcast
+                broadcast_id=str(chamado.id_chamado)  # ID do chamado para agrupamento
             )
+            count_notificacoes += 1
         
-        # ✅ CORREÇÃO CRÍTICA: 2. Também notificar o PRÓPRIO USUÁRIO COLABORADOR
-        Notificacao.objects.create(
-            usuario=chamado.usuario,  # O próprio criador do chamado
-            chamado=chamado,
-            mensagem=f"✅ **SEU CHAMADO FOI CRIADO!**\n📝 {chamado.titulo}\n🏢 {chamado.departamento.nome}\n🆔 {chamado.id_legivel}\n\nAguarde enquanto nossa equipe entra em contato.",
-            tipo='meu_chamado'
-        )
+        logger.info(f"✅ Notificações BROADCAST enviadas para TODOS os {count_notificacoes} suportes - Chamado: {chamado.id_legivel}")
         
-        logger.info(f"✅ Notificações enviadas para {usuarios_suporte.count()} suportes e para o usuário {chamado.usuario.username}")
+        return count_notificacoes
         
     except Exception as e:
-        logger.error(f"❌ Erro ao notificar suportes e usuário: {str(e)}")
+        logger.error(f"❌ Erro ao notificar suportes: {str(e)}")
+        return 0
+    
+@csrf_exempt
+@require_http_methods(["GET"])
+@usuario_required
+@rate_limit(max_requests=120, window=3600)
+def verificar_notificacoes_pendentes_suporte(request):
+    """✅ NOVA API: Verificar notificações pendentes para suporte (chamados não visualizados/resolvidos)"""
+    try:
+        # ✅ APENAS SUPORTE pode acessar esta API
+        if request.usuario.tipo_usuario != 'suporte':
+            return JsonResponse({
+                'success': False,
+                'message': 'Apenas usuários de suporte podem acessar esta API.'
+            }, status=403)
+        
+        # Buscar TODOS os chamados em andamento que NÃO foram visualizados por este suporte
+        chamados_nao_visualizados = Chamado.objects.filter(
+            status='em_andamento'  # Apenas chamados em andamento
+        ).exclude(
+            id_chamado__in=Notificacao.objects.filter(
+                usuario=request.usuario,
+                tipo='novo_chamado',
+                lida=True  # Excluir notificações já marcadas como lidas
+            ).values_list('chamado__id_chamado', flat=True)
+        )
+        
+        # Buscar também notificações não lidas do usuário
+        notificacoes_nao_lidas = Notificacao.objects.filter(
+            usuario=request.usuario,
+            lida=False
+        ).order_by('-criado_em')
+        
+        # Preparar dados dos chamados pendentes
+        chamados_pendentes = []
+        for chamado in chamados_nao_visualizados:
+            # Verificar se já existe uma notificação para este suporte
+            notificacao_existente = Notificacao.objects.filter(
+                usuario=request.usuario,
+                chamado=chamado
+            ).first()
+            
+            if not notificacao_existente:
+                # Criar notificação se não existir
+                mensagem_suporte = formatar_mensagem_suporte(
+                    chamado, 
+                    chamado.nome_solicitante, 
+                    chamado.departamento
+                )
+                notificacao_existente = Notificacao.objects.create(
+                    usuario=request.usuario,
+                    chamado=chamado,
+                    mensagem=mensagem_suporte,
+                    tipo='novo_chamado',
+                    lida=False
+                )
+            
+            hora_local = timezone.localtime(chamado.criado_em)
+            chamados_pendentes.append({
+                'chamado_id': str(chamado.id_chamado),
+                'chamado_legivel': chamado.id_legivel,
+                'titulo': chamado.titulo,
+                'nome_solicitante': chamado.nome_solicitante,
+                'departamento': chamado.departamento.nome,
+                'urgencia': chamado.get_urgencia_display(),
+                'status': chamado.get_status_display(),
+                'criado_em': hora_local.strftime('%d/%m/%Y %H:%M'),
+                'tempo_decorrido': chamado.tempo_decorrido,
+                'notificacao_id': str(notificacao_existente.id_notificacao) if notificacao_existente else None,
+                'notificacao_lida': notificacao_existente.lida if notificacao_existente else False
+            })
+        
+        # Preparar notificações não lidas
+        notificacoes_data = []
+        for notificacao in notificacoes_nao_lidas:
+            hora_local = timezone.localtime(notificacao.criado_em)
+            notificacoes_data.append({
+                'id': str(notificacao.id_notificacao),
+                'mensagem': notificacao.mensagem,
+                'chamado_id': str(notificacao.chamado.id_chamado) if notificacao.chamado else None,
+                'chamado_legivel': notificacao.chamado.id_legivel if notificacao.chamado else 'N/A',
+                'hora': hora_local.strftime('%H:%M'),
+                'data_completa': hora_local.strftime('%d/%m/%Y %H:%M'),
+                'tipo': notificacao.tipo,
+                'lida': notificacao.lida,
+                'timestamp': notificacao.criado_em.timestamp()
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'chamados_pendentes': chamados_pendentes,
+            'notificacoes': notificacoes_data,
+            'total_chamados_pendentes': len(chamados_pendentes),
+            'total_notificacoes_nao_lidas': notificacoes_nao_lidas.count(),
+            'ultima_verificacao': timezone.now().timestamp(),
+            'mensagem': f'Encontrados {len(chamados_pendentes)} chamados pendentes para atendimento'
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro ao verificar notificações pendentes: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'chamados_pendentes': [],
+            'notificacoes': [],
+            'total_chamados_pendentes': 0,
+            'total_notificacoes_nao_lidas': 0,
+            'message': 'Erro ao carregar notificações pendentes'
+        })
 
 def verificar_chamado_apos_10_minutos(id_chamado):
     """✅ CORREÇÃO CRÍTICA: Verifica se o chamado foi atendido após 10 minutos - SEM DUPLICAÇÃO"""
@@ -837,7 +956,7 @@ def verificar_notificacoes(request):
         if request.usuario.tipo_usuario == 'colaborador':
             # COLABORADOR: Ver apenas notificações dos SEUS chamados
             notificacoes_nao_lidas = Notificacao.objects.filter(
-                chamado__usuario=request.usuario,  # ✅ APENAS chamados do usuário
+                chamado__usuario=request.usuario,
                 lida=False
             ).order_by('-criado_em')
             
@@ -860,16 +979,24 @@ def verificar_notificacoes(request):
         notificacoes_data = []
         for notificacao in notificacoes_recentes:
             hora_local = timezone.localtime(notificacao.criado_em)
+            
+            # ✅ CORREÇÃO: Se for colaborador e a notificação é do tipo 'meu_chamado', formatar como na imagem
+            mensagem_exibida = notificacao.mensagem
+            if request.usuario.tipo_usuario == 'colaborador' and 'SEU CHAMADO FOI CRIADO' in notificacao.mensagem:
+                # Já está formatada corretamente
+                pass
+            
             notificacoes_data.append({
                 'id': str(notificacao.id_notificacao),
-                'mensagem': notificacao.mensagem,
+                'mensagem': mensagem_exibida,
                 'chamado_id': str(notificacao.chamado.id_chamado) if notificacao.chamado else None,
                 'chamado_legivel': notificacao.chamado.id_legivel if notificacao.chamado else 'N/A',
                 'hora': hora_local.strftime('%H:%M'),
                 'data_completa': hora_local.strftime('%d/%m/%Y %H:%M'),
                 'tipo': notificacao.tipo,
                 'lida': notificacao.lida,
-                'timestamp': notificacao.criado_em.timestamp()
+                'timestamp': notificacao.criado_em.timestamp(),
+                'pode_marcar_lida': request.usuario.tipo_usuario == 'suporte'  # ✅ Somente suporte pode marcar como lida
             })
         
         return JsonResponse({
@@ -878,7 +1005,8 @@ def verificar_notificacoes(request):
             'total_nao_lidas': notificacoes_nao_lidas.count(),
             'ultima_verificacao': timezone.now().timestamp(),
             'tipo_usuario': request.usuario.tipo_usuario,
-            'intervalo_verificacao': 45  # ✅ ATUALIZADO: 45 segundos
+            'intervalo_verificacao': 45,
+            'permite_marcar_lidas': request.usuario.tipo_usuario == 'suporte'  # ✅ Flag importante
         })
         
     except Exception as e:
@@ -978,7 +1106,7 @@ def limpar_notificacoes(request):
 def marcar_notificacao_como_lida(request, id_notificacao):
     """✅ FUNÇÃO CRÍTICA CORRIGIDA: Marcar notificação como lida com PERMISSÕES RESTRITAS"""
     try:
-        print(f"🔔 Tentando marcar notificação {id_notificacao} como lida para usuário {request.usuario.username} (tipo: {request.usuario.tipo_usuario})")
+        logger.info(f"🔔 Tentando marcar notificação {id_notificacao} como lida para usuário {request.usuario.username} (tipo: {request.usuario.tipo_usuario})")
         
         # ✅ CORREÇÃO CRÍTICA: COLABORADORES NÃO PODEM marcar notificações como lidas
         if request.usuario.tipo_usuario == 'colaborador':
@@ -1166,7 +1294,7 @@ def intermediar_chat_bot(request, id_chamado):
 @usuario_required
 @rate_limit(max_requests=20, window=3600)
 def trocar_status_chamado(request, id_chamado):
-    """API para trocar status do chamado"""
+    """API para trocar status do chamado - ATUALIZADA"""
     if not security.validate_uuid(id_chamado):
         return JsonResponse({
             'success': False,
@@ -1212,6 +1340,14 @@ def trocar_status_chamado(request, id_chamado):
         chamado.status = novo_status
         if novo_status == 'resolvido':
             chamado.data_resolucao = timezone.now()
+            # ✅ CORREÇÃO: Marcar TODAS as notificações deste chamado como lidas para TODOS os suportes
+            notificacoes_chamado = Notificacao.objects.filter(
+                chamado=chamado,
+                tipo='novo_chamado'
+            )
+            notificacoes_atualizadas = notificacoes_chamado.update(lida=True)
+            logger.info(f"Chamado resolvido: {notificacoes_atualizadas} notificações marcadas como lidas")
+        
         chamado.save()
         
         # Criar mensagem de atualização
@@ -1258,7 +1394,8 @@ def trocar_status_chamado(request, id_chamado):
             'success': True,
             'message': 'Status atualizado com sucesso!',
             'novo_status': chamado.get_status_display(),
-            'novo_status_value': novo_status
+            'novo_status_value': novo_status,
+            'notificacoes_atualizadas': notificacoes_atualizadas if novo_status == 'resolvido' else 0
         })
         
     except Chamado.DoesNotExist:
@@ -1278,7 +1415,7 @@ def trocar_status_chamado(request, id_chamado):
 @usuario_required
 @rate_limit(max_requests=20, window=3600)
 def marcar_chamado_visualizado(request, id_chamado):
-    """API para marcar chamado como visualizado pelo suporte"""
+    """API para marcar chamado como visualizado pelo suporte - CORRIGIDA"""
     if not security.validate_uuid(id_chamado):
         return JsonResponse({
             'success': False,
@@ -1293,14 +1430,28 @@ def marcar_chamado_visualizado(request, id_chamado):
             }, status=403)
         
         chamado = Chamado.objects.get(id_chamado=id_chamado)
-        chamado.visualizado_suporte = True
+        
+        # ✅ CORREÇÃO CRÍTICA: Marcar APENAS as notificações DESTE SUPORTE como visualizadas
+        notificacoes_chamado = Notificacao.objects.filter(
+            usuario=request.usuario,  # ✅ Apenas notificações DESTE usuário
+            chamado=chamado,
+            tipo='novo_chamado_broadcast'
+        )
+        
+        notificacoes_atualizadas = notificacoes_chamado.update(lida=True)
+        
+        # ✅ ADICIONAL: Marcar o chamado como visualizado por este suporte
+        chamado.visualizado_por.add(request.usuario)
         chamado.save()
         
-        logger.info(f"Chamado {id_chamado} marcado como visualizado por {request.usuario.username}")
+        # ✅ CORREÇÃO: NÃO marcar as notificações de OUTROS SUPORTES!
+        logger.info(f"Chamado {id_chamado} marcado como visualizado por {request.usuario.username}. {notificacoes_atualizadas} notificações DESTE SUPORTE marcadas como lidas.")
         
         return JsonResponse({
             'success': True,
-            'message': 'Chamado marcado como visualizado!'
+            'message': f'Chamado marcado como visualizado! {notificacoes_atualizadas} notificações suas marcadas como lidas.',
+            'notificacoes_atualizadas': notificacoes_atualizadas,
+            'visualizado_por': request.usuario.username
         })
         
     except Chamado.DoesNotExist:
@@ -1310,6 +1461,168 @@ def marcar_chamado_visualizado(request, id_chamado):
         }, status=404)
     except Exception as e:
         logger.error(f"Erro ao marcar chamado como visualizado: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erro interno do servidor'
+        }, status=500)
+    
+@csrf_exempt
+@require_http_methods(["GET"])
+@usuario_required
+@rate_limit(max_requests=120, window=3600)
+def verificar_chamados_abertos_para_suporte(request):
+    """✅ NOVA API: Verificar chamados abertos visíveis para TODOS os suportes"""
+    try:
+        if request.usuario.tipo_usuario != 'suporte':
+            return JsonResponse({
+                'success': False,
+                'message': 'Apenas usuários de suporte podem acessar esta API.'
+            }, status=403)
+        
+        # Buscar TODOS os chamados em andamento
+        chamados_abertos = Chamado.objects.filter(
+            status='em_andamento'
+        ).order_by('-criado_em')
+        
+        chamados_data = []
+        for chamado in chamados_abertos:
+            # Verificar se ESTE suporte já visualizou este chamado
+            visualizado_por_mim = chamado.visualizado_por.filter(
+                id_usuario=request.usuario.id_usuario
+            ).exists()
+            
+            # Verificar notificações deste suporte para este chamado
+            notificacao_suporte = Notificacao.objects.filter(
+                usuario=request.usuario,
+                chamado=chamado,
+                tipo='novo_chamado_broadcast'
+            ).first()
+            
+            # Contar quantos suportes já visualizaram este chamado
+            visualizacoes_count = chamado.visualizado_por.count()
+            
+            # Contar total de suportes
+            total_suportes = Usuario.objects.filter(tipo_usuario='suporte').count()
+            
+            hora_local = timezone.localtime(chamado.criado_em)
+            chamados_data.append({
+                'chamado_id': str(chamado.id_chamado),
+                'chamado_legivel': chamado.id_legivel,
+                'titulo': chamado.titulo,
+                'nome_solicitante': chamado.nome_solicitante,
+                'departamento': chamado.departamento.nome,
+                'departamento_id': str(chamado.departamento.id_departamento),
+                'urgencia': chamado.get_urgencia_display(),
+                'urgencia_valor': chamado.urgencia,
+                'status': chamado.get_status_display(),
+                'criado_em': hora_local.strftime('%d/%m/%Y %H:%M'),
+                'tempo_decorrido': chamado.tempo_decorrido,
+                'visualizado_por_mim': visualizado_por_mim,
+                'notificacao_lida': notificacao_suporte.lida if notificacao_suporte else False,
+                'notificacao_id': str(notificacao_suporte.id_notificacao) if notificacao_suporte else None,
+                'visualizacoes_count': visualizacoes_count,
+                'total_suportes': total_suportes,
+                'percentual_visualizado': round((visualizacoes_count / total_suportes) * 100) if total_suportes > 0 else 0,
+                'prioridade': 'alta' if chamado.urgencia == 'urgente' else 'media' if chamado.urgencia == 'alta' else 'baixa',
+                'detalhes_url': f"/chamado/{chamado.id_chamado}/"
+            })
+        
+        # Ordenar por urgência e tempo
+        chamados_data.sort(key=lambda x: (
+            0 if x['urgencia_valor'] == 'urgente' else 1 if x['urgencia_valor'] == 'alta' else 2,
+            -datetime.strptime(x['criado_em'], '%d/%m/%Y %H:%M').timestamp()
+        ))
+        
+        return JsonResponse({
+            'success': True,
+            'chamados_abertos': chamados_data,
+            'total_abertos': len(chamados_data),
+            'total_urgentes': len([c for c in chamados_data if c['urgencia_valor'] == 'urgente']),
+            'meus_visualizados': len([c for c in chamados_data if c['visualizado_por_mim']]),
+            'atualizado_em': timezone.now().strftime('%H:%M:%S'),
+            'mensagem': f'{len(chamados_data)} chamados abertos disponíveis para todos suportes'
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro em verificar_chamados_abertos_para_suporte: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erro interno do servidor'
+        }, status=500)
+    
+@csrf_exempt
+@require_http_methods(["GET"])
+@usuario_required
+@rate_limit(max_requests=60, window=3600)
+def verificar_chamados_pendentes_globais(request):
+    """✅ NOVA API: Verificar todos os chamados pendentes no sistema (para dashboard do suporte)"""
+    try:
+        if request.usuario.tipo_usuario != 'suporte':
+            return JsonResponse({
+                'success': False,
+                'message': 'Acesso não autorizado'
+            }, status=403)
+        
+        # Buscar TODOS os chamados em andamento
+        chamados_pendentes = Chamado.objects.filter(
+            status='em_andamento'
+        ).order_by('-criado_em')
+        
+        # Preparar dados
+        chamados_data = []
+        for chamado in chamados_pendentes:
+            # Verificar se este suporte já visualizou este chamado
+            visualizado_por_mim = Notificacao.objects.filter(
+                usuario=request.usuario,
+                chamado=chamado,
+                tipo='novo_chamado',
+                lida=True
+            ).exists()
+            
+            # Contar quantos suportes já visualizaram
+            visualizacoes_count = Notificacao.objects.filter(
+                chamado=chamado,
+                tipo='novo_chamado',
+                lida=True
+            ).values('usuario').distinct().count()
+            
+            # Contar total de suportes
+            total_suportes = Usuario.objects.filter(tipo_usuario='suporte').count()
+            
+            hora_local = timezone.localtime(chamado.criado_em)
+            chamados_data.append({
+                'chamado_id': str(chamado.id_chamado),
+                'chamado_legivel': chamado.id_legivel,
+                'titulo': chamado.titulo,
+                'nome_solicitante': chamado.nome_solicitante,
+                'departamento': chamado.departamento.nome,
+                'urgencia': chamado.get_urgencia_display(),
+                'urgencia_valor': chamado.urgencia,
+                'status': chamado.get_status_display(),
+                'criado_em': hora_local.strftime('%d/%m/%Y %H:%M'),
+                'tempo_decorrido': chamado.tempo_decorrido,
+                'visualizado_por_mim': visualizado_por_mim,
+                'visualizacoes_count': visualizacoes_count,
+                'total_suportes': total_suportes,
+                'percentual_visualizado': round((visualizacoes_count / total_suportes) * 100) if total_suportes > 0 else 0,
+                'prioridade': 'alta' if chamado.urgencia == 'urgente' else 'media' if chamado.urgencia == 'alta' else 'baixa'
+            })
+        
+        # Estatísticas
+        total_chamados_pendentes = chamados_pendentes.count()
+        chamados_urgentes = chamados_pendentes.filter(urgencia='urgente').count()
+        
+        return JsonResponse({
+            'success': True,
+            'chamados_pendentes': chamados_data,
+            'total_pendentes': total_chamados_pendentes,
+            'total_urgentes': chamados_urgentes,
+            'atualizado_em': timezone.now().strftime('%H:%M:%S'),
+            'mensagem': f'{total_chamados_pendentes} chamados pendentes ({chamados_urgentes} urgentes)'
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro em verificar_chamados_pendentes_globais: {str(e)}")
         return JsonResponse({
             'success': False,
             'message': 'Erro interno do servidor'
@@ -1494,13 +1807,12 @@ def api_dados_grafico(request):
         }, status=500)
 
 # === VIEWS EXISTENTES (MANTIDAS PARA COMPATIBILIDADE) ===
-
 @csrf_exempt
 @require_http_methods(["POST"])
 @usuario_required
 @rate_limit(max_requests=10, window=3600)
 def confirmar_atendimento(request, id_chamado):
-    """API para o suporte confirmar que atendeu o chamado - ATUALIZADA COM MENSAGEM FINAL"""
+    """API para o suporte confirmar que atendeu o chamado - ATUALIZADA COM NOTIFICAÇÕES"""
     if not security.validate_uuid(id_chamado):
         return JsonResponse({
             'success': False,
@@ -1520,6 +1832,13 @@ def confirmar_atendimento(request, id_chamado):
         chamado.data_resolucao = timezone.now()
         chamado.save()
         
+        # ✅ CORREÇÃO: Marcar TODAS as notificações deste chamado como lidas
+        notificacoes_chamado = Notificacao.objects.filter(
+            chamado=chamado,
+            tipo='novo_chamado'
+        )
+        notificacoes_atualizadas = notificacoes_chamado.update(lida=True)
+        
         # ✅ CORREÇÃO: Usar a mensagem completa de finalização
         finalizacao = bot_dialogos.get_finalizacao_suporte()
         InteracaoChamado.objects.create(
@@ -1538,10 +1857,12 @@ def confirmar_atendimento(request, id_chamado):
             acao_bot=finalizacao_completa['acao_bot']
         )
         
-        logger.info(f"Chamado {id_chamado} marcado como resolvido por {request.usuario.username}")
+        logger.info(f"Chamado {id_chamado} marcado como resolvido por {request.usuario.username}. {notificacoes_atualizadas} notificações marcadas como lidas.")
+        
         return JsonResponse({
             'success': True,
-            'message': 'Chamado marcado como resolvido com sucesso!'
+            'message': f'Chamado marcado como resolvido com sucesso! {notificacoes_atualizadas} notificações marcadas como lidas.',
+            'notificacoes_atualizadas': notificacoes_atualizadas
         })
         
     except Chamado.DoesNotExist:
@@ -1555,6 +1876,44 @@ def confirmar_atendimento(request, id_chamado):
             'success': False,
             'message': 'Erro interno do servidor'
         }, status=500)
+    
+@csrf_exempt
+@require_http_methods(["POST"])
+@usuario_required
+@rate_limit(max_requests=20, window=3600)
+def limpar_notificacoes_chamados_resolvidos(request):
+    """✅ NOVA API: Limpar automaticamente notificações de chamados já resolvidos"""
+    try:
+        if request.usuario.tipo_usuario != 'suporte':
+            return JsonResponse({
+                'success': False,
+                'message': 'Apenas usuários de suporte podem limpar notificações.'
+            }, status=403)
+        
+        # Buscar notificações de chamados já resolvidos
+        notificacoes_resolvidas = Notificacao.objects.filter(
+            usuario=request.usuario,
+            chamado__status='resolvido',
+            lida=False
+        )
+        
+        count = notificacoes_resolvidas.update(lida=True)
+        
+        logger.info(f"{count} notificações de chamados resolvidos marcadas como lidas por {request.usuario.username}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} notificações de chamados resolvidos marcadas como lidas',
+            'total_limpas': count
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro ao limpar notificações de chamados resolvidos: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erro ao limpar notificações'
+        }, status=500)
+
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -2282,7 +2641,7 @@ def verificar_novas_mensagens_inteligente(request, id_chamado):
         # ✅ CORREÇÃO CRÍTICA: Usar ID da última mensagem visualizada, não timestamp
         ultima_mensagem_visualizada_id = request.GET.get('ultima_visualizada_id')
         
-        print(f"🔍 API verificar_novas_mensagens_inteligente - ultima_visualizada_id recebido: {ultima_mensagem_visualizada_id}")
+        logger.info(f"🔍 API verificar_novas_mensagens_inteligente - ultima_visualizada_id recebido: {ultima_mensagem_visualizada_id}")
         
         # Buscar TODAS as mensagens do chamado
         todas_mensagens = InteracaoChamado.objects.filter(
@@ -2314,24 +2673,24 @@ def verificar_novas_mensagens_inteligente(request, id_chamado):
                             chamado=chamado,
                             criado_em__gt=ultima_visualizada.criado_em
                         ).order_by('criado_em')
-                        print(f"✅ Filtro aplicado: {novas_mensagens.count()} mensagens após ID {ultima_mensagem_visualizada_id}")
+                        logger.info(f"✅ Filtro aplicado: {novas_mensagens.count()} mensagens após ID {ultima_mensagem_visualizada_id}")
                     else:
                         # Se não encontrou a mensagem específica, considerar TODAS como não visualizadas
-                        print(f"⚠️ Mensagem visualizada não encontrada: {ultima_mensagem_visualizada_id}")
+                        logger.info(f"⚠️ Mensagem visualizada não encontrada: {ultima_mensagem_visualizada_id}")
                         novas_mensagens = todas_mensagens
                 else:
                     # Se não é UUID válido, considerar TODAS como não visualizadas
-                    print(f"⚠️ ID de visualização inválido: {ultima_mensagem_visualizada_id}")
+                    logger.info(f"⚠️ ID de visualização inválido: {ultima_mensagem_visualizada_id}")
                     novas_mensagens = todas_mensagens
             except Exception as e:
-                print(f"⚠️ Erro ao processar última mensagem visualizada, retornando todas: {e}")
+                logger.info(f"⚠️ Erro ao processar última mensagem visualizada, retornando todas: {e}")
                 novas_mensagens = todas_mensagens
         else:
             # ✅ Se não há última mensagem visualizada, TODAS são consideradas novas
-            print("ℹ️ Nenhum ID de visualização válido fornecido, retornando todas as mensagens")
+            logger.info("ℹ️ Nenhum ID de visualização válido fornecido, retornando todas as mensagens")
             novas_mensagens = todas_mensagens
         
-        print(f"📨 Novas mensagens NÃO VISUALIZADAS encontradas: {novas_mensagens.count()}")
+        logger.info(f"📨 Novas mensagens NÃO VISUALIZADAS encontradas: {novas_mensagens.count()}")
         
         # ✅ EXCEÇÕES: Não notificar sobre certos tipos de mensagens do bot
         mensagens_filtradas = []
@@ -2339,24 +2698,24 @@ def verificar_novas_mensagens_inteligente(request, id_chamado):
             # ✅ EXCEÇÃO 1: Não notificar mensagens de "status atualizado" do bot
             if (mensagem.remetente == 'bot' and 
                 'status atualizado' in mensagem.mensagem.lower()):
-                print(f"🚫 Ignorando mensagem de status atualizado: {mensagem.mensagem[:50]}...")
+                logger.info(f"🚫 Ignorando mensagem de status atualizado: {mensagem.mensagem[:50]}...")
                 continue
             
             # ✅ EXCEÇÃO 2: Não notificar mensagens de "verificação" automática
             if (mensagem.remetente == 'bot' and 
                 any(palavra in mensagem.mensagem.lower() for palavra in ['verificando', 'aguardando', 'confirmando'])):
-                print(f"🚫 Ignorando mensagem de verificação automática: {mensagem.mensagem[:50]}...")
+                logger.info(f"🚫 Ignorando mensagem de verificação automática: {mensagem.mensagem[:50]}...")
                 continue
             
             # ✅ EXCEÇÃO 3: Não notificar mensagens muito antigas (mais de 1 hora)
             tempo_decorrido = timezone.now() - mensagem.criado_em
             if tempo_decorrido.total_seconds() > 3600:  # 1 hora
-                print(f"🚫 Ignorando mensagem muito antiga: {mensagem.mensagem[:50]}...")
+                logger.info(f"🚫 Ignorando mensagem muito antiga: {mensagem.mensagem[:50]}...")
                 continue
             
             mensagens_filtradas.append(mensagem)
         
-        print(f"✅ Mensagens APÓS filtro de exceções: {len(mensagens_filtradas)}")
+        logger.info(f"✅ Mensagens APÓS filtro de exceções: {len(mensagens_filtradas)}")
         
         # Preparar dados das mensagens
         mensagens_data = []
@@ -2377,7 +2736,7 @@ def verificar_novas_mensagens_inteligente(request, id_chamado):
         if todas_mensagens.exists():
             ultima_mensagem_global = todas_mensagens.last()
             ultima_visualizada_id = str(ultima_mensagem_global.id_interacao)
-            print(f"📝 Última mensagem global ID: {ultima_visualizada_id}")
+            logger.info(f"📝 Última mensagem global ID: {ultima_visualizada_id}")
         else:
             ultima_visualizada_id = ultima_mensagem_visualizada_id
         
@@ -2396,7 +2755,7 @@ def verificar_novas_mensagens_inteligente(request, id_chamado):
         })
         
     except Chamado.DoesNotExist:
-        print(f"❌ Chamado não encontrado: {id_chamado}")
+        logger.error(f"❌ Chamado não encontrado: {id_chamado}")
         return JsonResponse({
             'success': False,
             'message': 'Chamado não encontrado'
@@ -2709,7 +3068,13 @@ def reiniciar_sequencia_bot(request, id_chamado):
         # InteracaoChamado.objects.filter(chamado=chamado, remetente='bot').delete()
         
         # Recriar primeira mensagem
-        criar_interacoes_iniciais(chamado, chamado.nome_solicitante, chamado.departamento, chamado.modalidade_presencial)
+        mensagem_colaborador = formatar_mensagem_colaborador(chamado)
+        InteracaoChamado.objects.create(
+            chamado=chamado,
+            remetente='bot',
+            mensagem=mensagem_colaborador,
+            acao_bot='criacao_chamado'
+        )
         
         logger.info(f"Sequência do bot reiniciada para chamado {chamado.id_legivel} por {request.usuario.username}")
         

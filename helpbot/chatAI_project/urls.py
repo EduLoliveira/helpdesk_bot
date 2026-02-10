@@ -66,11 +66,16 @@ urlpatterns = [
     path('notificacoes/', views.carregar_notificacoes, name='carregar_notificacoes'),
     path('notificacoes/<uuid:id_notificacao>/marcar-lida/', views.marcar_notificacao_lida, name='marcar_notificacao_lida'),
     
+    
     # ✅ URLs PARA SISTEMA DE NOTIFICAÇÕES CORRIGIDO
     path('api/verificar-notificacoes/', views.verificar_notificacoes, name='verificar_notificacoes'),
     path('api/marcar-todas-notificacoes-lidas/', views.marcar_todas_notificacoes_lidas, name='marcar_todas_notificacoes_lidas'),
     path('api/limpar-notificacoes/', views.limpar_notificacoes, name='limpar_notificacoes'),
-    
+    path('api/notificacoes/pendentes/', views.verificar_notificacoes_pendentes_suporte, name='verificar_notificacoes_pendentes'),
+    path('api/chamados/pendentes/', views.verificar_chamados_pendentes_globais, name='verificar_chamados_pendentes'),
+    path('api/notificacoes/limpar-resolvidos/', views.limpar_notificacoes_chamados_resolvidos, name='limpar_notificacoes_resolvidos'),
+    path('api/chamados/abertos-para-suporte/', views.verificar_chamados_abertos_para_suporte, name='verificar_chamados_abertos_suporte'),
+
     # URLs PARA SUPORTE
     path('chamado/<uuid:id_chamado>/marcar-visualizado/', views.marcar_chamado_visualizado, name='marcar_chamado_visualizado'),
     path('chamado/<uuid:id_chamado>/assumir-controle/', views.assumir_controle_chat, name='assumir_controle_chat'),
